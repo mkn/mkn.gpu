@@ -1,0 +1,12 @@
+
+name: mkn.gpu
+parent: headers
+
+profile:
+- name: headers
+  inc: inc
+  dep: mkn.kul
+
+- name: rocm
+  parent: headers
+  test: test/rocm.cpp
