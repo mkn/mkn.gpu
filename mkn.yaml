@@ -9,4 +9,5 @@ profile:
 
 - name: rocm
   parent: headers
+  inc: /opt/rocm/rocthrust /opt/rocm/rocprim
   test: test/rocm.cpp

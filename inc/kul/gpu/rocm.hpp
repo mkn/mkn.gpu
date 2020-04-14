@@ -28,31 +28,26 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
 #ifndef _KUL_GPU_ROCM_HPP_
 #define _KUL_GPU_ROCM_HPP_
 
 #include "kul/log.hpp"
 #include "hip/hip_runtime.h"
-#define GPU_ASSERT(x) (assert((x) == hipSuccess))
+#include "kul/gpu/rocm/def.hpp"
+#define KUL_GPU_ASSERT(x) (assert((x) == hipSuccess))
 
 namespace kul::gpu {
 
 template <typename T>
-__global__ void vectoradd(T* __restrict__ a, const T* __restrict__ b, const T* __restrict__ c,
-                          size_t width, size_t height) {
-  int x = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
-  int y = hipBlockDim_y * hipBlockIdx_y + hipThreadIdx_y;
-  int z = hipBlockDim_z * hipBlockIdx_z + hipThreadIdx_z;
-  int i = (z * height) + (y * width) + x;
+__global__ void vectoradd(T*  a, const T*  b, const T*  c, size_t width, size_t height) {
+  int i = hip::blockDim_i(width, height);
   a[i] = b[i] + c[i];
 }
 
+// https://rocm-developer-tools.github.io/HIP/group__Device.html
 void prinfo(size_t dev = 0) {
-  // https://rocm-developer-tools.github.io/HIP/group__Device.html
   hipDeviceProp_t devProp;
-  hipGetDeviceProperties(&devProp, dev);
-
+  [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
   KOUT(NON) << " agent name     " << devProp.name;
   KOUT(NON) << " cores          " << devProp.multiProcessorCount;
@@ -63,28 +58,61 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
 
+
 template <typename T>
 struct DeviceMem {
-  DeviceMem(size_t _s) : s(_s) { GPU_ASSERT(hipMalloc((void**)&p, s * sizeof(T))); }
+  DeviceMem(size_t _s) : s(_s) { KUL_GPU_ASSERT(hipMalloc((void**)&p, s * sizeof(T))); }
   DeviceMem(std::vector<T> const& v) : DeviceMem(v.size()) {
-    GPU_ASSERT(hipMemcpy(p, &v[0], v.size() * sizeof(T), hipMemcpyHostToDevice));
+    KUL_GPU_ASSERT(hipMemcpy(p, &v[0], v.size() * sizeof(T), hipMemcpyHostToDevice));
   }
   ~DeviceMem() {
-    if (p) GPU_ASSERT(hipFree(p));
+    if (p) KUL_GPU_ASSERT(hipFree(p));
   }
-  template <typename C>  // container
-  C& xfer(C& c) {
-    GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
+  template <typename Container>
+  Container& xfer(Container& c) {
+    KUL_GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
     return c;
   }
-  template <typename C = std::vector<T>>  // container
-  C get() {
-    C c(s);
+  template <typename Container = std::vector<T>>
+  Container get() {
+    Container c(s);
     return xfer(c);
   }
+  auto &size() const { return s; }
   size_t s = 0;
   T* p = nullptr;
 };
+
+template <bool GPU, typename gpu_t>
+struct ADeviceClass {};
+
+template <typename gpu_t>
+struct ADeviceClass<true, gpu_t> {};
+
+template <typename gpu_t>
+struct ADeviceClass<false, gpu_t> {
+
+  ~ADeviceClass(){invalidate();}
+
+  auto alloc(gpu_t const& ref){
+      if(ptr) throw std::runtime_error("already malloc-ed");
+      size = sizeof(ref);
+      KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
+      KUL_GPU_ASSERT(hipMemcpy(ptr, &ref, size, hipMemcpyHostToDevice));
+      return ptr;
+  }
+
+  void invalidate(){
+      if(!ptr) throw std::runtime_error("never malloc-ed");
+      KUL_GPU_ASSERT(hipFree(ptr));
+  }
+
+  gpu_t* ptr = nullptr;
+  size_t size = 0;
+};
+
+template <bool GPU, typename gpu_t>
+struct DeviceClass : ADeviceClass<GPU, gpu_t>{};
 
 // https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
 struct Launcher {
@@ -93,6 +121,7 @@ struct Launcher {
       : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
+
     hipLaunchKernelGGL(f, g, b, ds, s, args...);
   }
   size_t ds = 0 /*dynamicShared*/;
@@ -101,4 +130,5 @@ struct Launcher {
 };
 
 } /* namespace kul::gpu */
+#undef KUL_GPU_ASSERT
 #endif /* _KUL_LOG_HPP_ */
