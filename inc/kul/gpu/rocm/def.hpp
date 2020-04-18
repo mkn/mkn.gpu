@@ -14,4 +14,7 @@ __device__ int blockDim_i(size_t width, size_t height){
 
 }
 
+
+
+
 #endif /*_KUL_GPU_ROCM_DEF_HPP_*/

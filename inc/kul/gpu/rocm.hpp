@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _KUL_GPU_ROCM_HPP_
 
 #include "kul/log.hpp"
+#include "kul/tuple.hpp"
+
 #include "hip/hip_runtime.h"
 #include "kul/gpu/rocm/def.hpp"
 #define KUL_GPU_ASSERT(x) (assert((x) == hipSuccess))
@@ -83,36 +85,42 @@ struct DeviceMem {
   T* p = nullptr;
 };
 
-template <bool GPU, typename gpu_t>
+template <bool GPU>
 struct ADeviceClass {};
 
-template <typename gpu_t>
-struct ADeviceClass<true, gpu_t> {};
+template <>
+struct ADeviceClass<true> {};
 
-template <typename gpu_t>
-struct ADeviceClass<false, gpu_t> {
+template <>
+struct ADeviceClass<false> {
 
   ~ADeviceClass(){invalidate();}
 
-  auto alloc(gpu_t const& ref){
-      if(ptr) throw std::runtime_error("already malloc-ed");
-      size = sizeof(ref);
-      KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
-      KUL_GPU_ASSERT(hipMemcpy(ptr, &ref, size, hipMemcpyHostToDevice));
-      return ptr;
+  template<typename as, typename... DevMems>
+  decltype(auto) alloc(DevMems&&... mem){
+    if(ptr) throw std::runtime_error("already malloc-ed");
+    auto ptrs = make_pointer_container(mem.p...);
+    size_t size = sizeof(ptrs);
+    KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
+    KUL_GPU_ASSERT(hipMemcpy(ptr, &ptrs, size, hipMemcpyHostToDevice));
+    return static_cast<as*>(ptr);
   }
 
   void invalidate(){
-      if(!ptr) throw std::runtime_error("never malloc-ed");
+    if(ptr) {
       KUL_GPU_ASSERT(hipFree(ptr));
+      ptr = nullptr;
+    }
   }
 
-  gpu_t* ptr = nullptr;
-  size_t size = 0;
+  void* ptr = nullptr;
 };
 
-template <bool GPU, typename gpu_t>
-struct DeviceClass : ADeviceClass<GPU, gpu_t>{};
+template <bool GPU>
+struct DeviceClass : ADeviceClass<GPU>{
+  template<typename T>
+  using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T>>;
+};
 
 // https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
 struct Launcher {
