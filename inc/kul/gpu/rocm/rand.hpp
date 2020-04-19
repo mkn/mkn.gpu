@@ -2,7 +2,6 @@
 #ifndef _KUL_GPU_ROCM_RAND_HPP_
 #define _KUL_GPU_ROCM_RAND_HPP_
 
-
 #include <rocrand.h>
 #include <rocrand_kernel.h>
 #include <rocrand_mtgp32_11213.h>
@@ -89,5 +88,3 @@ void p_gpu(mtgp32_fast_params *params, size_t n, size_t *ref) __HC__ {
 }
 
 #endif /*_KUL_GPU_ROCM_RAND_HPP_*/
-
-

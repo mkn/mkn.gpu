@@ -41,7 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace kul::gpu {
 
 template <typename T>
-__global__ void vectoradd(T*  a, const T*  b, const T*  c, size_t width, size_t height) {
+__global__ void vectoradd(T* a, const T* b, const T* c, size_t width, size_t height) {
   int i = hip::blockDim_i(width, height);
   a[i] = b[i] + c[i];
 }
@@ -60,27 +60,31 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
 
-
 template <typename T>
 struct DeviceMem {
   DeviceMem(size_t _s) : s(_s) { KUL_GPU_ASSERT(hipMalloc((void**)&p, s * sizeof(T))); }
-  DeviceMem(std::vector<T> const& v) : DeviceMem(v.size()) {
-    KUL_GPU_ASSERT(hipMemcpy(p, &v[0], v.size() * sizeof(T), hipMemcpyHostToDevice));
+  DeviceMem(T const* const t, size_t _s) : DeviceMem(_s) {
+    KUL_GPU_ASSERT(hipMemcpy(p, t, s * sizeof(T), hipMemcpyHostToDevice));
   }
+  template <typename Container>
+  DeviceMem(Container const& v) : DeviceMem(&v[0], v.size()) {}
+
   ~DeviceMem() {
     if (p) KUL_GPU_ASSERT(hipFree(p));
   }
   template <typename Container>
-  Container& xfer(Container& c) {
+  Container& xfer(Container& c) const {
     KUL_GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
     return c;
   }
   template <typename Container = std::vector<T>>
-  Container get() {
+  Container get() const {
     Container c(s);
     return xfer(c);
   }
-  auto &size() const { return s; }
+  static decltype(auto) get(DeviceMem const& self) { return self.get(); }
+  decltype(auto) operator()() const { return get(*this); }
+  auto& size() const { return s; }
   size_t s = 0;
   T* p = nullptr;
 };
@@ -93,21 +97,23 @@ struct ADeviceClass<true> {};
 
 template <>
 struct ADeviceClass<false> {
+  ~ADeviceClass() { invalidate(); }
 
-  ~ADeviceClass(){invalidate();}
-
-  template<typename as, typename... DevMems>
-  decltype(auto) alloc(DevMems&&... mem){
-    if(ptr) throw std::runtime_error("already malloc-ed");
-    auto ptrs = make_pointer_container(mem.p...);
-    size_t size = sizeof(ptrs);
+  void _alloc(void* ptrs, size_t size) {
     KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
-    KUL_GPU_ASSERT(hipMemcpy(ptr, &ptrs, size, hipMemcpyHostToDevice));
+    KUL_GPU_ASSERT(hipMemcpy(ptr, ptrs, size, hipMemcpyHostToDevice));
+  }
+
+  template <typename as, typename... DevMems>
+  decltype(auto) alloc(DevMems&&... mem) {
+    if (ptr) throw std::runtime_error("already malloc-ed");
+    auto ptrs = make_pointer_container(mem.p...);
+    _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
   }
 
-  void invalidate(){
-    if(ptr) {
+  void invalidate() {
+    if (ptr) {
       KUL_GPU_ASSERT(hipFree(ptr));
       ptr = nullptr;
     }
@@ -117,8 +123,8 @@ struct ADeviceClass<false> {
 };
 
 template <bool GPU>
-struct DeviceClass : ADeviceClass<GPU>{
-  template<typename T>
+struct DeviceClass : ADeviceClass<GPU> {
+  template <typename T>
   using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T>>;
 };
 
@@ -129,7 +135,6 @@ struct Launcher {
       : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
-
     hipLaunchKernelGGL(f, g, b, ds, s, args...);
   }
   size_t ds = 0 /*dynamicShared*/;
