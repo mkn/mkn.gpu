@@ -31,12 +31,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _KUL_GPU_ROCM_HPP_
 #define _KUL_GPU_ROCM_HPP_
 
+#include "kul/assert.hpp"
+
 #include "kul/log.hpp"
+
 #include "kul/tuple.hpp"
 
 #include "hip/hip_runtime.h"
 #include "kul/gpu/rocm/def.hpp"
-#define KUL_GPU_ASSERT(x) (assert((x) == hipSuccess))
+#define KUL_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
 
 namespace kul::gpu {
 
@@ -62,12 +65,20 @@ void prinfo(size_t dev = 0) {
 
 template <typename T>
 struct DeviceMem {
-  DeviceMem(size_t _s) : s(_s) { KUL_GPU_ASSERT(hipMalloc((void**)&p, s * sizeof(T))); }
+  DeviceMem(size_t _s) : s(_s) {
+    size_t alloc_bytes = s * sizeof(T);
+    KLOG(OTH) << "GPU alloced: " << alloc_bytes;
+    KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
+  }
   DeviceMem(T const* const t, size_t _s) : DeviceMem(_s) {
     KUL_GPU_ASSERT(hipMemcpy(p, t, s * sizeof(T), hipMemcpyHostToDevice));
   }
-  template <typename Container>
+  template <typename Container, std::enable_if<!std::is_arithmetic_v<Container>>>
   DeviceMem(Container const& v) : DeviceMem(&v[0], v.size()) {}
+
+  void xfer(T const * const t, size_t start, size_t size){
+    KUL_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
+  }
 
   ~DeviceMem() {
     if (p) KUL_GPU_ASSERT(hipFree(p));
