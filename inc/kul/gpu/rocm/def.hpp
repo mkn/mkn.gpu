@@ -5,11 +5,14 @@
 
 namespace kul::gpu::hip {
 
-__device__ int blockDim_i(size_t width, size_t height) {
-  int x = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
-  int y = hipBlockDim_y * hipBlockIdx_y + hipThreadIdx_y;
-  int z = hipBlockDim_z * hipBlockIdx_z + hipThreadIdx_z;
-  return x + (y * width) + (z * height);
+__device__ uint32_t idx() {
+  uint32_t width = hipGridDim_x * hipBlockDim_x;
+  uint32_t height = hipGridDim_y * hipBlockDim_y;
+
+  uint32_t x = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+  uint32_t y = hipBlockDim_y * hipBlockIdx_y + hipThreadIdx_y;
+  uint32_t z = hipBlockDim_z * hipBlockIdx_z + hipThreadIdx_z;
+  return x + (y * width) + (z * width * height); // max 4294967296
 }
 
 }  // namespace kul::gpu::hip

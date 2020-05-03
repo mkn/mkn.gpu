@@ -44,10 +44,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace kul::gpu {
 
 template <typename T>
-__global__ void vectoradd(T* a, const T* b, const T* c, size_t width, size_t height) {
-  int i = hip::blockDim_i(width, height);
-  a[i] = b[i] + c[i];
-}
+static constexpr bool is_floating_point_v = std::is_floating_point_v<T> or
+                                           std::is_same_v<_Float16, T>;
 
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
 void prinfo(size_t dev = 0) {
@@ -65,36 +63,63 @@ void prinfo(size_t dev = 0) {
 
 template <typename T>
 struct DeviceMem {
+  DeviceMem(){}
   DeviceMem(size_t _s) : s(_s) {
     size_t alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
-    KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
-  }
-  DeviceMem(T const* const t, size_t _s) : DeviceMem(_s) {
-    KUL_GPU_ASSERT(hipMemcpy(p, t, s * sizeof(T), hipMemcpyHostToDevice));
-  }
-  template <typename Container, std::enable_if<!std::is_arithmetic_v<Container>>>
-  DeviceMem(Container const& v) : DeviceMem(&v[0], v.size()) {}
-
-  void xfer(T const * const t, size_t start, size_t size){
-    KUL_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
+    if(s)
+      KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
   }
 
-  ~DeviceMem() {
-    if (p) KUL_GPU_ASSERT(hipFree(p));
+  DeviceMem(T const* const t, size_t _s) : DeviceMem(_s) {send(t, _s);}
+  DeviceMem(std::vector<T> && v) : DeviceMem(&v[0], v.size()) {}
+  DeviceMem(std::vector<T> const& v) : DeviceMem(&v[0], v.size()) {}
+  DeviceMem(kul::Pointers<T> const& p) : DeviceMem(p.p, p.s) {}
+
+  ~DeviceMem() { if (p && s) KUL_GPU_ASSERT(hipFree(p)); }
+
+  void send(T const * const t, size_t _size = 1, size_t start = 0){
+    KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
   }
+
+  void send(std::vector<T> && v, size_t start = 0){
+    send(&v[0], v.size(), start);
+  }
+
+  void send(std::vector<T*> const& v, size_t start = 0){
+    send(v[0], v.size(), start);
+  }
+
+  void fill_n(T t, size_t _size, size_t start = 0){
+    if      constexpr(sizeof(T) == 64 or is_floating_point_v<T>)
+      send(std::vector<T>(_size, t), start);
+    else if constexpr (sizeof(T) == 1)
+      KUL_GPU_ASSERT(hipMemsetD8(p + start, t, _size));
+    else if constexpr (sizeof(T) == 2)
+      KUL_GPU_ASSERT(hipMemsetD16(p + start, t, _size));
+    else if constexpr (sizeof(T) == 4)
+      KUL_GPU_ASSERT(hipMemsetD32(p + start, t, _size));
+    else
+      throw std::runtime_error("Unmanaged type in fill_n");
+  }
+
+  decltype(auto) operator+(size_t size){
+    DeviceMem<T> view; // has no size;
+    view.p = this->p + size;
+    return view;
+  }
+
   template <typename Container>
-  Container& xfer(Container& c) const {
+  Container& take(Container& c) const {
     KUL_GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
     return c;
   }
   template <typename Container = std::vector<T>>
-  Container get() const {
+  Container take() const {
     Container c(s);
-    return xfer(c);
+    return take(c);
   }
-  static decltype(auto) get(DeviceMem const& self) { return self.get(); }
-  decltype(auto) operator()() const { return get(*this); }
+  decltype(auto) operator()() const { return take(); }
   auto& size() const { return s; }
   size_t s = 0;
   T* p = nullptr;
@@ -144,6 +169,10 @@ struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
   Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
       : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
+
+  Launcher(size_t x, size_t y, size_t z, size_t tpx, size_t tpy, size_t tpz)
+      : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
+
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
     hipLaunchKernelGGL(f, g, b, ds, s, args...);
@@ -153,6 +182,20 @@ struct Launcher {
   hipStream_t s = 0;
 };
 
+
+template<typename T, typename V>
+void fill_n(kul::gpu::DeviceMem<T> & p, size_t size, V val){
+  p.fill_n(val, size);
+}
+
+template<typename T, typename V>
+void fill_n(kul::gpu::DeviceMem<T> && p, size_t size, V val){
+  fill_n(p, size, val);
+}
+
+
 } /* namespace kul::gpu */
+
+
 #undef KUL_GPU_ASSERT
 #endif /* _KUL_LOG_HPP_ */
