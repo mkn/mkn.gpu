@@ -17,4 +17,32 @@ __device__ uint32_t idx() {
 
 }  // namespace kul::gpu::hip
 
+/* // make test of
+__global__ void xyz(uint32_t* in)
+{
+    auto i = kul::gpu::hip::idx();
+    in[i]  = i;
+}
+int main(int argc, char** argv)
+{
+    std::vector<uint32_t> data(X * Y * Z, 123);
+    kul::gpu::DeviceMem<uint32_t> gata{data};
+
+    kul::gpu::Launcher{X, Y, Z, TPB_X, TPB_Y, TPB_Z}(xyz, gata.p);
+
+    auto host = gata();
+
+    KLOG(NON) << host[10];
+    KLOG(NON) << host[100];
+    KLOG(NON) << host[1000];
+    KLOG(NON) << host[10000];
+    KLOG(NON) << host[100000];
+    KLOG(NON) << host[1000000];
+    KLOG(NON) << host[2000000];
+    KLOG(NON) << host.back();
+    KLOG(NON) << host.size();
+
+    return 0;
+}*/
+
 #endif /*_KUL_GPU_ROCM_DEF_HPP_*/

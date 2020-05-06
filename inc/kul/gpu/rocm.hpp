@@ -61,36 +61,34 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
 
-template <typename T>
+template <typename T, typename SIZE = uint32_t>
 struct DeviceMem {
+  using Pointers = kul::Pointers<T, SIZE>;
+
   DeviceMem(){}
-  DeviceMem(size_t _s) : s(_s) {
-    size_t alloc_bytes = s * sizeof(T);
+  DeviceMem(SIZE _s) : s(_s) {
+    SIZE alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
     if(s)
       KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
   }
 
-  DeviceMem(T const* const t, size_t _s) : DeviceMem(_s) {send(t, _s);}
-  DeviceMem(std::vector<T> && v) : DeviceMem(&v[0], v.size()) {}
+  DeviceMem(T const* const t, SIZE _s) : DeviceMem(_s) {send(t, _s);}
   DeviceMem(std::vector<T> const& v) : DeviceMem(&v[0], v.size()) {}
-  DeviceMem(kul::Pointers<T> const& p) : DeviceMem(p.p, p.s) {}
+  DeviceMem(std::vector<T> && v) : DeviceMem(v) {}
+  DeviceMem(Pointers const& p) : DeviceMem(p.p, p.s) {}
 
   ~DeviceMem() { if (p && s) KUL_GPU_ASSERT(hipFree(p)); }
 
-  void send(T const * const t, size_t _size = 1, size_t start = 0){
+  void send(Pointers const& p, SIZE start = 0){
+    send(p.p, p.s, start);
+  }
+
+  void send(T const * const t, SIZE _size = 1, SIZE start = 0){
     KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
   }
 
-  void send(std::vector<T> && v, size_t start = 0){
-    send(&v[0], v.size(), start);
-  }
-
-  void send(std::vector<T*> const& v, size_t start = 0){
-    send(v[0], v.size(), start);
-  }
-
-  void fill_n(T t, size_t _size, size_t start = 0){
+  void fill_n(T t, SIZE _size, SIZE start = 0){
     if      constexpr(sizeof(T) == 64 or is_floating_point_v<T>)
       send(std::vector<T>(_size, t), start);
     else if constexpr (sizeof(T) == 1)
@@ -121,7 +119,7 @@ struct DeviceMem {
   }
   decltype(auto) operator()() const { return take(); }
   auto& size() const { return s; }
-  size_t s = 0;
+  SIZE s = 0;
   T* p = nullptr;
 };
 
@@ -135,7 +133,7 @@ template <>
 struct ADeviceClass<false> {
   ~ADeviceClass() { invalidate(); }
 
-  void _alloc(void* ptrs, size_t size) {
+  void _alloc(void* ptrs, uint8_t size) {
     KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
     KUL_GPU_ASSERT(hipMemcpy(ptr, ptrs, size, hipMemcpyHostToDevice));
   }
@@ -144,6 +142,9 @@ struct ADeviceClass<false> {
   decltype(auto) alloc(DevMems&&... mem) {
     if (ptr) throw std::runtime_error("already malloc-ed");
     auto ptrs = make_pointer_container(mem.p...);
+    if (sizeof(as) != sizeof(ptrs))
+       throw std::runtime_error("VERY NO");
+
     _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
   }
@@ -160,21 +161,25 @@ struct ADeviceClass<false> {
 
 template <bool GPU>
 struct DeviceClass : ADeviceClass<GPU> {
-  template <typename T>
-  using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T>>;
+  template <typename T, typename SIZE = uint32_t>
+  using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T, SIZE>>;
 };
+
+void sync(){
+  KUL_GPU_ASSERT(hipDeviceSynchronize());
+}
 
 // https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
 struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
   Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
       : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
-
   Launcher(size_t x, size_t y, size_t z, size_t tpx, size_t tpy, size_t tpz)
       : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
 
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
+    kul::gpu::sync();
     hipLaunchKernelGGL(f, g, b, ds, s, args...);
   }
   size_t ds = 0 /*dynamicShared*/;
