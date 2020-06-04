@@ -31,14 +31,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _KUL_GPU_ROCM_HPP_
 #define _KUL_GPU_ROCM_HPP_
 
-#include "kul/assert.hpp"
+#include "hip/hip_runtime.h"
 
 #include "kul/log.hpp"
+#include "kul/assert.hpp"
+#include "kul/gpu/tuple.hpp"
 
-#include "kul/tuple.hpp"
-
-#include "hip/hip_runtime.h"
 #include "kul/gpu/rocm/def.hpp"
+
 #define KUL_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
 
 namespace kul::gpu {
@@ -91,12 +91,15 @@ struct DeviceMem {
   void fill_n(T t, SIZE _size, SIZE start = 0){
     if      constexpr(sizeof(T) == 64 or is_floating_point_v<T>)
       send(std::vector<T>(_size, t), start);
-    else if constexpr (sizeof(T) == 1)
+    else if constexpr (sizeof(T) == 1) {
       KUL_GPU_ASSERT(hipMemsetD8(p + start, t, _size));
-    else if constexpr (sizeof(T) == 2)
+    }
+    else if constexpr (sizeof(T) == 2) {
       KUL_GPU_ASSERT(hipMemsetD16(p + start, t, _size));
-    else if constexpr (sizeof(T) == 4)
+    }
+    else if constexpr (sizeof(T) == 4) {
       KUL_GPU_ASSERT(hipMemsetD32(p + start, t, _size));
+    }
     else
       throw std::runtime_error("Unmanaged type in fill_n");
   }
@@ -181,6 +184,7 @@ struct Launcher {
   void operator()(F f, Args... args) {
     kul::gpu::sync();
     hipLaunchKernelGGL(f, g, b, ds, s, args...);
+    kul::gpu::sync();
   }
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
