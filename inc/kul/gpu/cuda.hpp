@@ -49,7 +49,7 @@ static constexpr bool is_floating_point_v = std::is_floating_point_v<T> or
 
 
 void prinfo(size_t dev = 0) {
-  cudaDeviceProp_t devProp;
+  cudaDeviceProp devProp;
   [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
   KOUT(NON) << " agent name     " << devProp.name;
