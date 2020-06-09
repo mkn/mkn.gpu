@@ -28,18 +28,18 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _KUL_GPU_ROCM_HPP_
-#define _KUL_GPU_ROCM_HPP_
+#ifndef _KUL_GPU_CUDA_HPP_
+#define _KUL_GPU_CUDA_HPP_
 
-#include "hip/hip_runtime.h"
+#include <cuda_runtime.h>
 
 #include "kul/log.hpp"
 #include "kul/assert.hpp"
 #include "kul/gpu/tuple.hpp"
 
-#include "kul/gpu/rocm/def.hpp"
+#include "kul/gpu/cuda/def.hpp"
 
-#define KUL_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
+#define KUL_GPU_ASSERT(x) (KASSERT((x) == cudaSuccess))
 
 namespace kul::gpu {
 
@@ -47,10 +47,10 @@ template <typename T>
 static constexpr bool is_floating_point_v = std::is_floating_point_v<T> or
                                            std::is_same_v<_Float16, T>;
 
-// https://rocm-developer-tools.github.io/HIP/group__Device.html
+
 void prinfo(size_t dev = 0) {
-  hipDeviceProp_t devProp;
-  [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
+  cudaDeviceProp_t devProp;
+  [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
   KOUT(NON) << " agent name     " << devProp.name;
   KOUT(NON) << " cores          " << devProp.multiProcessorCount;
@@ -70,7 +70,7 @@ struct DeviceMem {
     SIZE alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
     if(s)
-      KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
+      KUL_GPU_ASSERT(cudaMalloc((void**)&p, alloc_bytes));
   }
 
   DeviceMem(T const* const t, SIZE _s) : DeviceMem(_s) {send(t, _s);}
@@ -78,14 +78,14 @@ struct DeviceMem {
   DeviceMem(std::vector<T> && v) : DeviceMem(v) {}
   DeviceMem(Pointers const& p) : DeviceMem(p.p, p.s) {}
 
-  ~DeviceMem() { if (p && s) KUL_GPU_ASSERT(hipFree(p)); }
+  ~DeviceMem() { if (p && s) KUL_GPU_ASSERT(cudaFree(p)); }
 
   void send(Pointers const& p, SIZE start = 0){
     send(p.p, p.s, start);
   }
 
   void send(T const * const t, SIZE _size = 1, SIZE start = 0){
-    KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
+    KUL_GPU_ASSERT(cudaMemcpy(p + start, t, _size * sizeof(T), cudaMemcpyHostToDevice));
   }
 
   void send(std::vector<T> && v, SIZE start = 0){
@@ -93,19 +93,8 @@ struct DeviceMem {
   }
 
   void fill_n(T t, SIZE _size, SIZE start = 0){
-    if      constexpr(sizeof(T) == 64 or is_floating_point_v<T>)
-      send(std::vector<T>(_size, t), start);
-    else if constexpr (sizeof(T) == 1) {
-      KUL_GPU_ASSERT(hipMemsetD8(p + start, t, _size));
-    }
-    else if constexpr (sizeof(T) == 2) {
-      KUL_GPU_ASSERT(hipMemsetD16(p + start, t, _size));
-    }
-    else if constexpr (sizeof(T) == 4) {
-      KUL_GPU_ASSERT(hipMemsetD32(p + start, t, _size));
-    }
-    else
-      throw std::runtime_error("Unmanaged type in fill_n");
+    // TODO - improve with memSet style
+    send(std::vector<T>(_size, t), start);
   }
 
   decltype(auto) operator+(size_t size){
@@ -116,7 +105,7 @@ struct DeviceMem {
 
   template <typename Container>
   Container& take(Container& c) const {
-    KUL_GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
+    KUL_GPU_ASSERT(cudaMemcpy(&c[0], p, s * sizeof(T), cudaMemcpyDeviceToHost));
     return c;
   }
   template <typename Container = std::vector<T>>
@@ -141,8 +130,8 @@ struct ADeviceClass<false> {
   ~ADeviceClass() { invalidate(); }
 
   void _alloc(void* ptrs, uint8_t size) {
-    KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
-    KUL_GPU_ASSERT(hipMemcpy(ptr, ptrs, size, hipMemcpyHostToDevice));
+    KUL_GPU_ASSERT(cudaMalloc((void**)&ptr, size));
+    KUL_GPU_ASSERT(cudaMemcpy(ptr, ptrs, size, cudaMemcpyHostToDevice));
   }
 
   template <typename as, typename... DevMems>
@@ -158,7 +147,7 @@ struct ADeviceClass<false> {
 
   void invalidate() {
     if (ptr) {
-      KUL_GPU_ASSERT(hipFree(ptr));
+      KUL_GPU_ASSERT(cudaFree(ptr));
       ptr = nullptr;
     }
   }
@@ -173,10 +162,9 @@ struct DeviceClass : ADeviceClass<GPU> {
 };
 
 void sync(){
-  KUL_GPU_ASSERT(hipDeviceSynchronize());
+  KUL_GPU_ASSERT(cudaDeviceSynchronize());
 }
 
-// https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
 struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
   Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
@@ -187,11 +175,12 @@ struct Launcher {
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
     kul::gpu::sync();
-    hipLaunchKernelGGL(f, g, b, ds, s, args...);
+
+    f<<<g, b, ds, s>>>(args...);
   }
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
-  hipStream_t s = 0;
+  cudaStream_t s = 0;
 };
 
 
@@ -210,4 +199,4 @@ void fill_n(kul::gpu::DeviceMem<T> && p, size_t size, V val){
 
 
 #undef KUL_GPU_ASSERT
-#endif /* _KUL_GPU_ROCM_HPP_ */
+#endif /* _KUL_GPU_CUDA_HPP_ */

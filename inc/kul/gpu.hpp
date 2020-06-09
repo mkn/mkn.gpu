@@ -1,5 +1,5 @@
 /**
-Copyright (c) 2017, Philip Deegan.
+Copyright (c) 2019, Philip Deegan.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -28,24 +28,32 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _KUL_GPU_TUPLE_HPP_
-#define _KUL_GPU_TUPLE_HPP_
+#ifndef _KUL_GPU_HPP_
+#define _KUL_GPU_HPP_
 
-#include "kul/tuple.hpp"
+#if defined(KUL_GPU_ROCM)
+#include "kul/gpu/rocm.hpp"
+#elif defined(KUL_GPU_CUDA)
+#include "kul/gpu/cuda.hpp"
+#else
+#error   "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#endif
 
 namespace kul::gpu {
 
-template <typename T, typename SIZE = size_t>
-struct Pointers {
-  Pointers(T const* p_, SIZE s_) __device__ __host__ : p{p_}, s{s_} {}
-  T const* p = nullptr;
-  SIZE s = 0;
-  auto& operator[](SIZE i) const __device__ __host__ { return p[i]; }
-  auto& begin() const __device__ __host__ { return p; }
-  auto end() const __device__ __host__ { return p + s; }
-  auto& size() const __device__ __host__ { return s; }
-};
+__device__ uint32_t idx() {
 
-} // end namespace kul::gpu
+#if defined(KUL_GPU_ROCM)
+  return kul::gpu::hip::idx();
+#elif defined(KUL_GPU_CUDA)
+  return kul::gpu::cuda::idx();
+#else
+#error   "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#endif
 
-#endif /* _KUL_GPU_TUPLE_HPP_ */
+}
+
+} /* namespace kul::gpu */
+
+
+#endif /* _KUL_GPU_HPP_ */

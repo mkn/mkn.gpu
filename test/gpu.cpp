@@ -1,6 +1,6 @@
 
 
-#include "kul/gpu/rocm.hpp"
+#include "kul/gpu.hpp"
 
 static constexpr size_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr size_t NUM = WIDTH * HEIGHT;
