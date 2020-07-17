@@ -19,7 +19,7 @@ int main() {
   for (size_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;
   kul::gpu::DeviceMem<float> devA(NUM), devB(hostB), devC(hostC);
   kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
-      vectoradd<float>, devA.p, devB.p, devC.p);
+      vectoradd<float>, devA, devB, devC);
   auto hostA = devA();
   for (size_t i = 0; i < NUM; i++)
     if (hostA[i] != (hostB[i] + hostC[i])) return 1;

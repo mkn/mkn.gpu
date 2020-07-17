@@ -119,6 +119,15 @@ struct DeviceMem {
   T* p = nullptr;
 };
 
+template<typename T>
+struct is_device_mem : std::false_type{};
+
+template<typename T>
+struct is_device_mem<DeviceMem<T>> : std::true_type{};
+
+template<typename T>
+inline constexpr auto is_device_mem_v = is_device_mem<T>::value;
+
 template <bool GPU>
 struct ADeviceClass {};
 
@@ -135,7 +144,7 @@ struct ADeviceClass<false> {
   }
 
   template <typename as, typename... DevMems>
-  decltype(auto) alloc(DevMems&&... mem) {
+  decltype(auto) alloc(DevMems&... mem) {
     if (ptr) throw std::runtime_error("already malloc-ed");
     auto ptrs = make_pointer_container(mem.p...);
     if (sizeof(as) != sizeof(ptrs))
@@ -161,6 +170,23 @@ struct DeviceClass : ADeviceClass<GPU> {
   using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T, SIZE>>;
 };
 
+namespace {
+
+template<typename T>
+decltype(auto) get(T const&t) {
+  if constexpr (is_device_mem_v<T>)
+    return t.p;
+  else
+    return t;
+}
+
+template<std::size_t... I, typename... Args>
+decltype(auto) devmem_replace(std::tuple<Args const&...> &&tup, std::index_sequence<I...>) {
+    return std::make_tuple(get(std::get<I>(tup))...);
+}
+
+} /* namespace */
+
 void sync(){
   KUL_GPU_ASSERT(cudaDeviceSynchronize());
 }
@@ -175,8 +201,8 @@ struct Launcher {
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
     kul::gpu::sync();
-
-    f<<<g, b, ds, s>>>(args...);
+    auto tup = devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
+    std::apply([&](auto&... params) { f<<<g, b, ds, s>>>(params...); }, tup);
   }
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
