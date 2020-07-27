@@ -1,5 +1,5 @@
 /**
-Copyright (c) 2019, Philip Deegan.
+Copyright (c) 2020, Philip Deegan.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -63,31 +63,40 @@ void prinfo(size_t dev = 0) {
 
 template <typename T, typename SIZE = uint32_t>
 struct DeviceMem {
-  using Pointers = kul::Pointers<T, SIZE>;
+  using Span = kul::Span<T, SIZE>;
+  using Span_ct = kul::Span<T const, SIZE>;
 
   DeviceMem() {}
-  DeviceMem(SIZE _s) : s(_s), owned{true} {
+  DeviceMem(SIZE _s) : s{_s}, owned{true} {
     SIZE alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
     KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
   }
 
-  DeviceMem(T const* const t, SIZE _s) : DeviceMem(_s) { send(t, _s); }
-  DeviceMem(std::vector<T> const& v) : DeviceMem(&v[0], v.size()) {}
-  DeviceMem(std::vector<T>&& v) : DeviceMem(v) {}
-  DeviceMem(Pointers const& p) : DeviceMem(p.p, p.s) {}
+  DeviceMem(T const* const t, SIZE _s) : DeviceMem{_s} { send(t, _s); }
+  DeviceMem(Span const& s) : DeviceMem{s.data(), s.size()} {}
+  DeviceMem(Span&& s) : DeviceMem{s} {}
+  DeviceMem(Span_ct const& s) : DeviceMem{s.data(), s.size()} {}
+  DeviceMem(Span_ct&& s) : DeviceMem{s} {}
+  DeviceMem(std::vector<T> const& v) : DeviceMem{&v[0], static_cast<SIZE>(v.size())} {}
+  DeviceMem(std::vector<T>&& v) : DeviceMem{v} {}
 
   ~DeviceMem() {
     if (p && s && owned) KUL_GPU_ASSERT(hipFree(p));
   }
 
-  void send(Pointers const& p, SIZE start = 0) { send(p.p, p.s, start); }
-
   void send(T const* const t, SIZE _size = 1, SIZE start = 0) {
     KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
   }
 
-  void send(std::vector<T>&& v, SIZE start = 0) { send(&v[0], v.size(), start); }
+  void send(Span const& s, SIZE start = 0) { send(s.data(), s.size(), start); }
+  void send(Span&& s, SIZE start = 0) { send(s, start); }
+
+  void send(Span_ct const& s, SIZE start = 0) { send(s.data(), s.size(), start); }
+  void send(Span_ct&& s, SIZE start = 0) { send(s, start); }
+
+  void send(std::vector<T> const& v, SIZE start = 0) { send(&v[0], v.size(), start); }
+  void send(std::vector<T>&& v, SIZE start = 0) { send(v, start); }
 
   void fill_n(T t, SIZE _size, SIZE start = 0) {
     // TODO - improve with memSet style

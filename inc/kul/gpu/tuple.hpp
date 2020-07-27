@@ -36,78 +36,86 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace kul::gpu {
 
 template <typename T, typename SIZE = size_t>
-struct Pointers {
-  Pointers(T const* p_, SIZE s_) __device__ __host__ : p{p_}, s{s_} {}
-  T const* p = nullptr;
+struct Span {
+  using value_type = T;
+
+  Span(T* ptr_, SIZE s_) __device__ __host__ : ptr{ptr_}, s{s_} {}
+
+  auto& operator[](SIZE i) __device__ __host__ { return ptr[i]; }
+  auto const& operator[](SIZE i) const __device__ __host__ { return ptr[i]; }
+  auto data() __device__ __host__ { return ptr; }
+  auto data() const __device__ __host__ { return ptr; }
+  auto begin() __device__ __host__ { return ptr; }
+  auto cbegin() const __device__ __host__ { return ptr; }
+  auto end() __device__ __host__ { return ptr + s; }
+  auto cend() const __device__ __host__ { return ptr + s; }
+  SIZE const& size() const __device__ __host__ { return s; }
+
+  T* ptr = nullptr;
   SIZE s = 0;
-  auto& operator[](SIZE i) const __device__ __host__ { return p[i]; }
-  auto& data() const __device__ __host__ { return p; }
-  auto& begin() const __device__ __host__ { return p; }
-  auto end() const __device__ __host__ { return p + s; }
-  auto& size() const __device__ __host__ { return s; }
 };
 
 template <typename T, typename SIZE, bool GPU>
-struct ASplitVector : kul::gpu::DeviceClass<GPU> {};
+struct ASpanSet : kul::gpu::DeviceClass<GPU> {};
 
 template <typename T, typename SIZE>
-struct ASplitVector<T, SIZE, true> : kul::gpu::DeviceClass<true> {};
+struct ASpanSet<T, SIZE, true> : kul::gpu::DeviceClass<true> {};
 
 template <typename T, typename SIZE>
-struct ASplitVector<T, SIZE, false> : kul::gpu::DeviceClass<false> {
-  mutable kul::SplitVector<T, SIZE> base;
+struct ASpanSet<T, SIZE, false> : kul::gpu::DeviceClass<false> {
+  kul::SpanSet<T, SIZE> base;
 };
 
-template <typename T, bool GPU, typename SIZE = size_t>
-struct SplitVector : ASplitVector<T, SIZE, GPU> {
+template <typename T, typename SIZE = size_t, bool GPU = false>
+struct SpanSet : ASpanSet<T, SIZE, GPU> {
   using value_type = T;
-  using Super = ASplitVector<T, SIZE, GPU>;
-  using SplitVector_ = SplitVector<T, GPU, SIZE>;
-  using gpu_t = SplitVector<T, true, SIZE>;
+  using Super = ASpanSet<T, SIZE, GPU>;
+  using SpanSet_ = SpanSet<T, SIZE, GPU>;
+  using gpu_t = SpanSet<T, SIZE, true>;
 
   template <typename T1>
   using container_t = typename Super::template container_t<T1>;
 
   /* HOST */
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  SplitVector(std::vector<SIZE>&& sizes_)
+  SpanSet(std::vector<SIZE>&& sizes_)
       : Super{sizes_}, sizes(sizes_), vec(Super::base.size), displs(Super::base.displs) {}
 
   template <bool gpu = GPU, std::enable_if_t<gpu, bool> = 0>
+  auto operator[](SIZE i) __device__ {
+    return Span<T, SIZE>{vec + displs[i], sizes[i]};
+  }
+
+  template <bool gpu = GPU, std::enable_if_t<gpu, bool> = 0>
   auto operator[](SIZE i) const __device__ {
-    return Pointers<T, SIZE>{vec + displs[i], sizes[i]};
+    return Span<T, SIZE>{vec + displs[i], sizes[i]};
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  decltype(auto) operator()() {
+  decltype(auto) send() {
     return Super::template alloc<gpu_t>(sizes, displs, vec);
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  decltype(auto) operator()() const {
+  decltype(auto) take() {
     Super::base.vec = std::move(vec.take());
     return Super::base;
   }
   /* HOST */
 
   /* DEVICE */
-  template <bool gpu = GPU, std::enable_if_t<gpu, bool> = 0>
-  T* data() __device__ {
-    return vec;
-  }
-
   struct iterator {
-    iterator(SplitVector_* _sv) : sv(_sv) {}
-    iterator operator++() {
+    iterator(SpanSet_* _sv) __device__ : sv(_sv) {}
+    iterator operator++() __device__ {
       curr_pos += sv->sizes[curr_ptr++];
       return *this;
     }
-    bool operator!=(const iterator& other) const { return curr_ptr != sv->sizes.size(); }
-    Pointers<T, SIZE> operator*() const {
-      return Pointers<T, SIZE>{sv->vec.data() + curr_pos, sv->sizes[curr_ptr]};
+    bool operator!=(const iterator& other) const __device__ { return curr_ptr != sv->sizes.size(); }
+    Span<T, SIZE> operator*() const {
+      return Span<T, SIZE>{sv->vec.data() + curr_pos, sv->sizes[curr_ptr]};
     }
 
-    SplitVector_* sv = nullptr;
+    SpanSet_* sv = nullptr;
     SIZE curr_pos = 0, curr_ptr = 0;
   };
 

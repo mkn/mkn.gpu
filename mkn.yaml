@@ -8,13 +8,14 @@ profile:
   inc: inc
   dep: mkn.kul
 
-- name: rocm
+- name: test
   parent: headers
   test: test/gpu.cpp
+
+- name: rocm
+  parent: test
   arg: -DKUL_GPU_ROCM
 
 - name: cuda
-  parent: headers
-  test: test/gpu.cpp
+  parent: test
   arg: -DKUL_GPU_CUDA
-
