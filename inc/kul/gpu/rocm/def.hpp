@@ -12,7 +12,7 @@ __device__ uint32_t idx() {
   uint32_t x = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
   uint32_t y = hipBlockDim_y * hipBlockIdx_y + hipThreadIdx_y;
   uint32_t z = hipBlockDim_z * hipBlockIdx_z + hipThreadIdx_z;
-  return x + (y * width) + (z * width * height); // max 4294967296
+  return x + (y * width) + (z * width * height);  // max 4294967296
 }
 
 }  // namespace kul::gpu::hip

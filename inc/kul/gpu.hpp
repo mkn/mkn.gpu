@@ -36,24 +36,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #elif defined(KUL_GPU_CUDA)
 #include "kul/gpu/cuda.hpp"
 #else
-#error   "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
 #endif
 
 namespace kul::gpu {
 
 __device__ uint32_t idx() {
-
 #if defined(KUL_GPU_ROCM)
   return kul::gpu::hip::idx();
 #elif defined(KUL_GPU_CUDA)
   return kul::gpu::cuda::idx();
 #else
-#error   "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
 #endif
-
 }
 
 } /* namespace kul::gpu */
-
 
 #endif /* _KUL_GPU_HPP_ */

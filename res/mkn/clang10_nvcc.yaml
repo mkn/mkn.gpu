@@ -12,7 +12,9 @@ compiler:
     g++:
       mpicc
 
+#example include path for system
 inc: /usr/local/cuda-10.2/targets/x86_64-linux/include
+#example library path for system
 path: /usr/local/cuda-10.2/targets/x86_64-linux/lib
 
 ## The following compile flags will likely be required with their specific values for your current hardware

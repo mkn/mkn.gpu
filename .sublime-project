@@ -1,14 +1,17 @@
 {
-  "folders" :
-  [
-    {
-      "path" : "."
-    }
-  ],
-   "settings": {
-    "ClangFormat": {
-      "format_on_save": true,
-      "style": "file"
-    }
-  }
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+	"settings":
+	{
+		"ClangFormat":
+		{
+			"binary": "clang-format-8",
+			"format_on_save": true,
+			"style": "file"
+		},
+	}
 }

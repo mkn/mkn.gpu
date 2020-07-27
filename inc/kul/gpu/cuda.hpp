@@ -35,7 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "kul/log.hpp"
 #include "kul/assert.hpp"
-#include "kul/gpu/tuple.hpp"
+#include "kul/tuple.hpp"
 
 #include "kul/gpu/cuda/def.hpp"
 
@@ -44,10 +44,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace kul::gpu {
 
 template <typename T>
-static constexpr bool is_floating_point_v = std::is_floating_point_v<T> or
-                                           std::is_same_v<_Float16, T>;
+static constexpr bool is_floating_point_v =
+    std::is_floating_point_v<T> or std::is_same_v<_Float16, T>;
 
-
+//
 void prinfo(size_t dev = 0) {
   cudaDeviceProp devProp;
   [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
@@ -65,41 +65,40 @@ template <typename T, typename SIZE = uint32_t>
 struct DeviceMem {
   using Pointers = kul::Pointers<T, SIZE>;
 
-  DeviceMem(){}
-  DeviceMem(SIZE _s) : s(_s) {
+  DeviceMem() {}
+  DeviceMem(SIZE _s) : s(_s), owned{true} {
     SIZE alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
-    if(s)
-      KUL_GPU_ASSERT(cudaMalloc((void**)&p, alloc_bytes));
+    if (s) KUL_GPU_ASSERT(cudaMalloc((void**)&p, alloc_bytes));
   }
 
-  DeviceMem(T const* const t, SIZE _s) : DeviceMem(_s) {send(t, _s);}
+  DeviceMem(T const* const t, SIZE _s) : DeviceMem(_s) { send(t, _s); }
   DeviceMem(std::vector<T> const& v) : DeviceMem(&v[0], v.size()) {}
-  DeviceMem(std::vector<T> && v) : DeviceMem(v) {}
+  DeviceMem(std::vector<T>&& v) : DeviceMem(v) {}
   DeviceMem(Pointers const& p) : DeviceMem(p.p, p.s) {}
 
-  ~DeviceMem() { if (p && s) KUL_GPU_ASSERT(cudaFree(p)); }
-
-  void send(Pointers const& p, SIZE start = 0){
-    send(p.p, p.s, start);
+  ~DeviceMem() {
+    if (p && s && owned) KUL_GPU_ASSERT(cudaFree(p));
   }
 
-  void send(T const * const t, SIZE _size = 1, SIZE start = 0){
+  void send(Pointers const& p, SIZE start = 0) { send(p.p, p.s, start); }
+
+  void send(T const* const t, SIZE _size = 1, SIZE start = 0) {
     KUL_GPU_ASSERT(cudaMemcpy(p + start, t, _size * sizeof(T), cudaMemcpyHostToDevice));
   }
 
-  void send(std::vector<T> && v, SIZE start = 0){
-    send(&v[0], v.size(), start);
-  }
+  void send(std::vector<T>&& v, SIZE start = 0) { send(&v[0], v.size(), start); }
 
-  void fill_n(T t, SIZE _size, SIZE start = 0){
+  void fill_n(T t, SIZE _size, SIZE start = 0) {
     // TODO - improve with memSet style
+    assert(_size + start <= s);
     send(std::vector<T>(_size, t), start);
   }
 
-  decltype(auto) operator+(size_t size){
-    DeviceMem<T> view; // has no size;
+  decltype(auto) operator+(size_t size) {
+    DeviceMem<T> view;
     view.p = this->p + size;
+    view.s = this->s - size;
     return view;
   }
 
@@ -108,24 +107,29 @@ struct DeviceMem {
     KUL_GPU_ASSERT(cudaMemcpy(&c[0], p, s * sizeof(T), cudaMemcpyDeviceToHost));
     return c;
   }
+
   template <typename Container = std::vector<T>>
   Container take() const {
     Container c(s);
     return take(c);
   }
+
   decltype(auto) operator()() const { return take(); }
+
   auto& size() const { return s; }
+
   SIZE s = 0;
   T* p = nullptr;
+  bool owned = false;
 };
 
-template<typename T>
-struct is_device_mem : std::false_type{};
+template <typename T>
+struct is_device_mem : std::false_type {};
 
-template<typename T>
-struct is_device_mem<DeviceMem<T>> : std::true_type{};
+template <typename T>
+struct is_device_mem<DeviceMem<T>> : std::true_type {};
 
-template<typename T>
+template <typename T>
 inline constexpr auto is_device_mem_v = is_device_mem<T>::value;
 
 template <bool GPU>
@@ -147,8 +151,7 @@ struct ADeviceClass<false> {
   decltype(auto) alloc(DevMems&... mem) {
     if (ptr) throw std::runtime_error("already malloc-ed");
     auto ptrs = make_pointer_container(mem.p...);
-    if (sizeof(as) != sizeof(ptrs))
-       throw std::runtime_error("VERY NO");
+    if (sizeof(as) != sizeof(ptrs)) throw std::runtime_error("VERY NO");
 
     _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
@@ -172,24 +175,22 @@ struct DeviceClass : ADeviceClass<GPU> {
 
 namespace {
 
-template<typename T>
-decltype(auto) get(T const&t) {
+template <typename T>
+decltype(auto) get(T const& t) {
   if constexpr (is_device_mem_v<T>)
     return t.p;
   else
     return t;
 }
 
-template<std::size_t... I, typename... Args>
-decltype(auto) devmem_replace(std::tuple<Args const&...> &&tup, std::index_sequence<I...>) {
-    return std::make_tuple(get(std::get<I>(tup))...);
+template <std::size_t... I, typename... Args>
+decltype(auto) devmem_replace(std::tuple<Args const&...>&& tup, std::index_sequence<I...>) {
+  return std::make_tuple(get(std::get<I>(tup))...);
 }
 
 } /* namespace */
 
-void sync(){
-  KUL_GPU_ASSERT(cudaDeviceSynchronize());
-}
+void sync() { KUL_GPU_ASSERT(cudaDeviceSynchronize()); }
 
 struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
@@ -201,7 +202,8 @@ struct Launcher {
   template <typename F, typename... Args>
   void operator()(F f, Args... args) {
     kul::gpu::sync();
-    auto tup = devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
+    auto tup =
+        devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
     std::apply([&](auto&... params) { f<<<g, b, ds, s>>>(params...); }, tup);
   }
   size_t ds = 0 /*dynamicShared*/;
@@ -209,20 +211,17 @@ struct Launcher {
   cudaStream_t s = 0;
 };
 
-
-template<typename T, typename V>
-void fill_n(kul::gpu::DeviceMem<T> & p, size_t size, V val){
+template <typename T, typename V>
+void fill_n(kul::gpu::DeviceMem<T>& p, size_t size, V val) {
   p.fill_n(val, size);
 }
 
-template<typename T, typename V>
-void fill_n(kul::gpu::DeviceMem<T> && p, size_t size, V val){
+template <typename T, typename V>
+void fill_n(kul::gpu::DeviceMem<T>&& p, size_t size, V val) {
   fill_n(p, size, val);
 }
 
-
 } /* namespace kul::gpu */
-
 
 #undef KUL_GPU_ASSERT
 #endif /* _KUL_GPU_CUDA_HPP_ */

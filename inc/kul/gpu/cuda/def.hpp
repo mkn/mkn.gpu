@@ -12,9 +12,9 @@ __device__ uint32_t idx() {
   uint32_t x = blockDim.x * blockIdx.x + threadIdx.x;
   uint32_t y = blockDim.y * blockIdx.y + threadIdx.y;
   uint32_t z = blockDim.z * blockIdx.z + threadIdx.z;
-  return x + (y * width) + (z * width * height); // max 4294967296
+  return x + (y * width) + (z * width * height);  // max 4294967296
 }
 
-}  // namespace kul::gpu::hip
+}  // namespace kul::gpu::cuda
 
 #endif /*_KUL_GPU_CUDA_DEF_HPP_*/
