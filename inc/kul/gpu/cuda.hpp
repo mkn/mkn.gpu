@@ -210,7 +210,7 @@ struct Launcher {
       : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
 
   template <typename F, typename... Args>
-  void operator()(F f, Args... args) {
+  void operator()(F f, Args const&... args) {
     kul::gpu::sync();
     auto tup =
         devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
