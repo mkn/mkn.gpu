@@ -10,7 +10,7 @@ profile:
 
 - name: test
   parent: headers
-  test: test/gpu.cpp
+  test: test/(\w).cpp
 
 - name: rocm
   parent: test
