@@ -43,10 +43,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace kul::gpu {
 
-template <typename T>
-static constexpr bool is_floating_point_v =
-    std::is_floating_point_v<T> or std::is_same_v<_Float16, T>;
-
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
 void prinfo(size_t dev = 0) {
   hipDeviceProp_t devProp;
@@ -185,7 +181,7 @@ struct DeviceClass : ADeviceClass<GPU> {
 namespace {
 
 template <typename T>
-decltype(auto) replace(T const& t) {
+decltype(auto) replace(T& t) {
   if constexpr (is_device_mem_v<T>)
     return t.p;
   else
@@ -193,7 +189,7 @@ decltype(auto) replace(T const& t) {
 }
 
 template <std::size_t... IS, typename... Args>
-decltype(auto) devmem_replace(std::tuple<Args const&...>&& tup, std::index_sequence<IS...>) {
+decltype(auto) devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<IS...>) {
   return std::make_tuple(replace(std::get<IS>(tup))...);
 }
 
@@ -210,11 +206,11 @@ struct Launcher {
       : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
 
   template <typename F, typename... Args>
-  void operator()(F f, Args const&... args) {
+  void operator()(F f, Args&&... args) {
     kul::gpu::sync();
-    auto tup =
-        devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
-    std::apply([&](auto&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); }, tup);
+    std::apply([&](auto&&... params) {
+      hipLaunchKernelGGL(f, g, b, ds, s, params...);
+    }, devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
   }
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;

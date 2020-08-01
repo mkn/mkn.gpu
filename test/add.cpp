@@ -1,5 +1,4 @@
 
-
 #include "kul/gpu.hpp"
 
 static constexpr size_t WIDTH = 1024, HEIGHT = 1024;
@@ -12,17 +11,21 @@ __global__ void vectoradd(T* a, const T* b, const T* c) {
   a[i] = b[i] + c[i];
 }
 
-int main() {
-  kul::gpu::prinfo();
-  std::vector<float> hostB(NUM), hostC(NUM);
+template<typename Float>
+size_t test(){
+  std::vector<Float> hostB(NUM), hostC(NUM);
   for (size_t i = 0; i < NUM; i++) hostB[i] = i;
   for (size_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;
-  kul::gpu::DeviceMem<float> devA(NUM), devB(hostB), devC(hostC);
+  kul::gpu::DeviceMem<Float> devA(NUM), devB(hostB), devC(hostC);
   kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
-      vectoradd<float>, devA, devB, devC);
+      vectoradd<Float>, devA, devB, devC);
   auto hostA = devA();
   for (size_t i = 0; i < NUM; i++)
     if (hostA[i] != (hostB[i] + hostC[i])) return 1;
-  printf("PASSED!\n");
   return 0;
+}
+
+int main() {
+  kul::gpu::prinfo();
+  return test<float>() + test<double>();
 }

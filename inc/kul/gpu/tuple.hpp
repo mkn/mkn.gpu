@@ -97,7 +97,7 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  decltype(auto) take() {
+  kul::SpanSet<T, SIZE>& take() {
     Super::base.vec = std::move(vec.take());
     return Super::base;
   }
