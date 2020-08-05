@@ -35,7 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "kul/gpu/rocm.hpp"
 #elif defined(KUL_GPU_CUDA)
 #include "kul/gpu/cuda.hpp"
-#else
+#elif !defined(KUL_GPU_FN_PER_NS) || KUL_GPU_FN_PER_NS == 0
 #error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
 #endif
 

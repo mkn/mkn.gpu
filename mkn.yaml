@@ -8,14 +8,14 @@ profile:
   inc: inc
   dep: mkn.kul
 
-- name: test
-  parent: headers
-  test: test/(\w).cpp
-
 - name: rocm
-  parent: test
+  parent: headers
   arg: -DKUL_GPU_ROCM
+  test: test/any/(\w).cpp
+        test/hip/(\w).cpp
 
 - name: cuda
-  parent: test
+  parent: headers
   arg: -DKUL_GPU_CUDA
+  test: test/any/(\w).cpp
+        test/cuda/(\w).cpp
