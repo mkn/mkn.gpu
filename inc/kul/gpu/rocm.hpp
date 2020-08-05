@@ -37,11 +37,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "kul/assert.hpp"
 #include "kul/tuple.hpp"
 
-#include "kul/gpu/rocm/def.hpp"
+#include "kul/gpu/def.hpp"
 
 #define KUL_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
 
 namespace kul::gpu {
+#if defined(KUL_GPU_FN_PER_NS) && KUL_GPU_FN_PER_NS
+namespace hip {
+#endif  // KUL_GPU_FN_PER_NS
 
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
 void prinfo(size_t dev = 0) {
@@ -59,23 +62,17 @@ void prinfo(size_t dev = 0) {
 
 template <typename T, typename SIZE = uint32_t>
 struct DeviceMem {
-  using Span = kul::Span<T, SIZE>;
-  using Span_ct = kul::Span<T const, SIZE>;
 
   DeviceMem() {}
   DeviceMem(SIZE _s) : s{_s}, owned{true} {
     SIZE alloc_bytes = s * sizeof(T);
     KLOG(OTH) << "GPU alloced: " << alloc_bytes;
-    KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
+    if (s) KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
   }
 
   DeviceMem(T const* const t, SIZE _s) : DeviceMem{_s} { send(t, _s); }
-  DeviceMem(Span const& s) : DeviceMem{s.data(), s.size()} {}
-  DeviceMem(Span&& s) : DeviceMem{s} {}
-  DeviceMem(Span_ct const& s) : DeviceMem{s.data(), s.size()} {}
-  DeviceMem(Span_ct&& s) : DeviceMem{s} {}
-  DeviceMem(std::vector<T> const& v) : DeviceMem{&v[0], static_cast<SIZE>(v.size())} {}
-  DeviceMem(std::vector<T>&& v) : DeviceMem{v} {}
+  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  DeviceMem(C c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} {}
 
   ~DeviceMem() {
     if (p && s && owned) KUL_GPU_ASSERT(hipFree(p));
@@ -84,15 +81,10 @@ struct DeviceMem {
   void send(T const* const t, SIZE _size = 1, SIZE start = 0) {
     KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
   }
-
-  void send(Span const& s, SIZE start = 0) { send(s.data(), s.size(), start); }
-  void send(Span&& s, SIZE start = 0) { send(s, start); }
-
-  void send(Span_ct const& s, SIZE start = 0) { send(s.data(), s.size(), start); }
-  void send(Span_ct&& s, SIZE start = 0) { send(s, start); }
-
-  void send(std::vector<T> const& v, SIZE start = 0) { send(&v[0], v.size(), start); }
-  void send(std::vector<T>&& v, SIZE start = 0) { send(v, start); }
+  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  void send(C c, SIZE start = 0) {
+    send(c.data(), c.size(), start);
+  }
 
   void fill_n(T t, SIZE _size, SIZE start = 0) {
     // TODO - improve with memSet style
@@ -100,7 +92,7 @@ struct DeviceMem {
     send(std::vector<T>(_size, t), start);
   }
 
-  decltype(auto) operator+(size_t size) {
+  DeviceMem<T> operator+(size_t size) {
     DeviceMem<T> view;
     view.p = this->p + size;
     view.s = this->s - size;
@@ -175,7 +167,7 @@ struct ADeviceClass<false> {
 template <bool GPU>
 struct DeviceClass : ADeviceClass<GPU> {
   template <typename T, typename SIZE = uint32_t>
-  using container_t = std::conditional_t<GPU, T*, kul::gpu::DeviceMem<T, SIZE>>;
+  using container_t = std::conditional_t<GPU, T*, DeviceMem<T, SIZE>>;
 };
 
 namespace {
@@ -207,10 +199,10 @@ struct Launcher {
 
   template <typename F, typename... Args>
   void operator()(F f, Args&&... args) {
-    kul::gpu::sync();
-    std::apply([&](auto&&... params) {
-      hipLaunchKernelGGL(f, g, b, ds, s, params...);
-    }, devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
+    sync();
+    std::apply([&](auto&&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); },
+               devmem_replace(std::forward_as_tuple(args...),
+                              std::make_index_sequence<sizeof...(Args)>()));
   }
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
@@ -218,15 +210,18 @@ struct Launcher {
 };
 
 template <typename T, typename V>
-void fill_n(kul::gpu::DeviceMem<T>& p, size_t size, V val) {
+void fill_n(DeviceMem<T>& p, size_t size, V val) {
   p.fill_n(val, size);
 }
 
 template <typename T, typename V>
-void fill_n(kul::gpu::DeviceMem<T>&& p, size_t size, V val) {
+void fill_n(DeviceMem<T>&& p, size_t size, V val) {
   fill_n(p, size, val);
 }
 
+#if defined(KUL_GPU_FN_PER_NS) && KUL_GPU_FN_PER_NS
+} /* namespace hip */
+#endif  // KUL_GPU_FN_PER_NS
 } /* namespace kul::gpu */
 
 #undef KUL_GPU_ASSERT

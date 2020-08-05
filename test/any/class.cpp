@@ -64,6 +64,6 @@ size_t test(){
 }
 
 int main() {
-  kul::gpu::prinfo();
+  KOUT(NON) << __FILE__;
   return test<float>() + test<double>();
 }

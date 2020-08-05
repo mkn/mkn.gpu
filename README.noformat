@@ -1,0 +1,27 @@
+mkn.gpu
+
+CUDA/HIP C++17 convenience wrappers
+
+======
+
+Compile argument switches
+
+Key             KUL_GPU_CUDA
+Type            bool
+Default         0
+Example         mkn cuda profile
+Description     activate CUDA as impl of kul::gpu::*
+
+Key             KUL_GPU_ROCM
+Type            bool
+Default         0
+Example         mkn rocm profile
+Description     activate ROCM as impl of kul::gpu::*
+
+Key             KUL_GPU_FN_PER_NS
+Type            bool
+Default         0
+Example         test/hip/add.cpp or test/cuda/add.cpp
+Description     expose functions explicitly via
+                   kul::gpu::hip::*
+                   kul::gpu::cuda::*

@@ -3,6 +3,8 @@
 #ifndef _KUL_GPU_CUDA_DEF_HPP_
 #define _KUL_GPU_CUDA_DEF_HPP_
 
+#include <cuda_runtime.h>
+
 namespace kul::gpu::cuda {
 
 __device__ uint32_t idx() {

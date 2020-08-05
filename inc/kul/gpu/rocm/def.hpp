@@ -3,6 +3,8 @@
 #ifndef _KUL_GPU_ROCM_DEF_HPP_
 #define _KUL_GPU_ROCM_DEF_HPP_
 
+#include "hip/hip_runtime.h"
+
 namespace kul::gpu::hip {
 
 __device__ uint32_t idx() {
