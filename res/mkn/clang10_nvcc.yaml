@@ -1,3 +1,7 @@
+#
+# example mkn call using this file
+#   mkn clean build test -Op cuda -x res/mkn/clang10_nvcc -a --cuda-gpu-arch="sm_61" -l -lcudart
+
 
 local:
   repo: /mkn/r
@@ -23,5 +27,5 @@ path: /usr/local/cuda-10.2/targets/x86_64-linux/lib
 file:
   - type: cpp:cxx:cc
     archiver: ar -cr
-    compiler:  mpicc -cc=clang++-10 --std=c++17 -fPIC -fsized-deallocation -x cuda
-    linker:  mpicc -cc=clang++-10 -fuse-ld=gold
+    compiler:  mpicc -cc=clang++-10 --std=c++17 -fPIC -fsized-deallocation -x cuda # --cuda-gpu-arch="sm_61"
+    linker:  mpicc -cc=clang++-10 -fuse-ld=gold # -lcudart

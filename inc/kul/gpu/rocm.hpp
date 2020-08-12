@@ -148,7 +148,7 @@ struct ADeviceClass<false> {
   decltype(auto) alloc(DevMems&... mem) {
     if (ptr) throw std::runtime_error("already malloc-ed");
     auto ptrs = make_pointer_container(mem.p...);
-    if (sizeof(as) != sizeof(ptrs)) throw std::runtime_error("VERY NO");
+    static_assert(sizeof(as) == sizeof(ptrs), "Class cast type size mismatch");
 
     _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
@@ -164,11 +164,13 @@ struct ADeviceClass<false> {
   void* ptr = nullptr;
 };
 
-template <bool GPU>
+template <bool GPU = false>
 struct DeviceClass : ADeviceClass<GPU> {
   template <typename T, typename SIZE = uint32_t>
   using container_t = std::conditional_t<GPU, T*, DeviceMem<T, SIZE>>;
 };
+
+using HostClass = DeviceClass<false>;
 
 namespace {
 
