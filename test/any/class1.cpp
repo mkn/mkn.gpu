@@ -45,7 +45,7 @@ using GPUClass = typename ::DevClass<T>::gpu_t;
 
 template <typename T>
 __global__ void vectoradd(GPUClass<T>* a, GPUClass<T> const* b, GPUClass<T> const* c) {
-  int i = kul::gpu::idx();
+  auto i = kul::gpu::idx();
   (*a)[i] = (*b)[i] + (*c)[i];
 }
 

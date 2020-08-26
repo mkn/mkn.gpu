@@ -7,7 +7,7 @@ static constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
 
 template <typename T>
 __global__ void vectoradd(T* a, const T* b, const T* c) {
-  int i = kul::gpu::cuda::idx();
+  auto i = kul::gpu::cuda::idx();
   a[i] = b[i] + c[i];
 }
 

@@ -37,7 +37,7 @@ struct HostClassB : kul::gpu::HostClass {
 
 template <typename T>
 __global__ void vectoradd(A<T> * a, B<T> const * const b) {
-  int i = kul::gpu::idx();
+  auto i = kul::gpu::idx();
   a->data[i] = b->data0[i] + b->data1[i];
 }
 

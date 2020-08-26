@@ -7,14 +7,15 @@
 
 namespace kul::gpu::cuda {
 
-__device__ uint32_t idx() {
-  uint32_t width = gridDim.x * blockDim.x;
-  uint32_t height = gridDim.y * blockDim.y;
+template <typename SIZE = uint32_t /*max 4294967296*/>
+__device__ SIZE idx() {
+  SIZE width = gridDim.x * blockDim.x;
+  SIZE height = gridDim.y * blockDim.y;
 
-  uint32_t x = blockDim.x * blockIdx.x + threadIdx.x;
-  uint32_t y = blockDim.y * blockIdx.y + threadIdx.y;
-  uint32_t z = blockDim.z * blockIdx.z + threadIdx.z;
-  return x + (y * width) + (z * width * height);  // max 4294967296
+  SIZE x = blockDim.x * blockIdx.x + threadIdx.x;
+  SIZE y = blockDim.y * blockIdx.y + threadIdx.y;
+  SIZE z = blockDim.z * blockIdx.z + threadIdx.z;
+  return x + (y * width) + (z * width * height);
 }
 
 }  // namespace kul::gpu::cuda
