@@ -92,7 +92,7 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  decltype(auto) send() {
+  auto send() {
     return Super::template alloc<gpu_t>(sizes, displs, vec);
   }
 

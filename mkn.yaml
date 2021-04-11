@@ -1,4 +1,4 @@
-#! clean build test -Op rocm -x res/mkn/hipcc
+#! clean build test run -tOp rocm -x res/mkn/hipcc
 
 name: mkn.gpu
 parent: headers

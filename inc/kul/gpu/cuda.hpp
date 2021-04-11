@@ -28,6 +28,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+// IWYU pragma: private, include "kul/gpu.hpp"
 #ifndef _KUL_GPU_CUDA_HPP_
 #define _KUL_GPU_CUDA_HPP_
 
@@ -64,6 +65,8 @@ void prinfo(size_t dev = 0) {
 template <typename T, typename SIZE = uint32_t>
 struct DeviceMem {
 
+  using value_type = T;
+
   DeviceMem() {}
   DeviceMem(SIZE _s) : s{_s}, owned{true} {
     SIZE alloc_bytes = s * sizeof(T);
@@ -72,8 +75,12 @@ struct DeviceMem {
   }
 
   DeviceMem(T const* const t, SIZE _s) : DeviceMem{_s} { send(t, _s); }
+
   template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  DeviceMem(C c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} {}
+  DeviceMem(C const & c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} { }
+
+  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  DeviceMem(C && c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} { }
 
   ~DeviceMem() {
     if (p && s && owned) KUL_GPU_ASSERT(cudaFree(p));
@@ -112,7 +119,7 @@ struct DeviceMem {
     return take(c);
   }
 
-  decltype(auto) operator()() const { return take(); }
+  auto operator()() const { return take(); }
 
   auto& size() const { return s; }
 
@@ -146,7 +153,7 @@ struct ADeviceClass<false> {
   }
 
   template <typename as, typename... DevMems>
-  decltype(auto) alloc(DevMems&... mem) {
+  auto alloc(DevMems&... mem) {
     if (ptr) throw std::runtime_error("already malloc-ed");
     auto ptrs = make_pointer_container(mem.p...);
     static_assert(sizeof(as) == sizeof(ptrs), "Class cast type size mismatch");
@@ -176,7 +183,7 @@ using HostClass = DeviceClass<false>;
 namespace {
 
 template <typename T>
-decltype(auto) replace(T& t) {
+auto replace(T& t) {
   if constexpr (is_device_mem_v<T>)
     return t.p;
   else
@@ -184,7 +191,7 @@ decltype(auto) replace(T& t) {
 }
 
 template <std::size_t... I, typename... Args>
-decltype(auto) devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
+auto devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
   return std::make_tuple(replace(std::get<I>(tup))...);
 }
 
@@ -207,6 +214,7 @@ struct Launcher {
                devmem_replace(std::forward_as_tuple(args...),
                               std::make_index_sequence<sizeof...(Args)>()));
   }
+
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
   cudaStream_t s = 0;
@@ -221,6 +229,88 @@ template <typename T, typename V>
 void fill_n(DeviceMem<T>&& p, size_t size, V val) {
   fill_n(p, size, val);
 }
+
+template <typename T, typename SIZE, SIZE size_>
+struct HostArrayBase {
+
+  using value_type = T;
+
+  HostArrayBase(HostArrayBase const&) = delete;
+
+  HostArrayBase() {
+    SIZE alloc_bytes = size_ * sizeof(T);
+    KLOG(OTH) << "GPU alloced: " << alloc_bytes;
+    if (size_) KUL_GPU_ASSERT(cudaMallocHost((void**)&p, alloc_bytes));
+  }
+
+  ~HostArrayBase() {
+    if (p && size_) KUL_GPU_ASSERT(cudaFreeHost(p));
+  }
+
+  auto& operator[](SIZE idx){
+    assert(idx < size_);
+    return p[idx];
+  }
+  auto& operator[](SIZE idx) const {
+    assert(idx < size_);
+    return p[idx];
+  }
+
+  auto begin() { return p; }
+  auto begin() const { return p; }
+  auto end() { return p + size_; }
+  auto end() const { return p + size_; }
+  auto* data() { return p; }
+  auto* data() const { return p; }
+
+  constexpr auto size() const { return size_; }
+
+  T* p = nullptr;
+};
+
+template <typename T, typename SIZE_t = std::uint32_t>
+struct HostMem {
+
+  using value_type = T;
+  using SIZE = SIZE_t;
+
+  HostMem(HostMem & that) : p{that.p}, size_{that.size_} {
+    that.p = nullptr;
+  }
+
+  HostMem(SIZE _size) : size_{_size}{
+    SIZE alloc_bytes = size_ * sizeof(T);
+    KLOG(OTH) << "CPU alloced: " << alloc_bytes;
+    if (size_ > 0) KUL_GPU_ASSERT(cudaMallocHost((void**)&p, alloc_bytes));
+  }
+
+  ~HostMem() {
+    if (size_ > 0) if (p) KUL_GPU_ASSERT(cudaFreeHost(p));
+  }
+
+  auto& operator[](SIZE idx){
+    assert(idx < size_);
+    return p[idx];
+  }
+
+  auto begin() { return p; }
+  auto begin() const { return p; }
+  auto end() { return p + size_; }
+  auto end() const { return p + size_; }
+  auto* data() { return p; }
+  auto* data() const { return p; }
+  auto size() const { return size_; }
+
+  T* p = nullptr;
+  SIZE size_;
+};
+
+
+template <typename T, std::uint32_t size>
+using HostArray = HostArrayBase<T, std::uint32_t, size>;
+
+template <typename T, std::size_t size>
+using BigHostArray = HostArrayBase<T, std::size_t, size>;
 
 #if defined(KUL_GPU_FN_PER_NS) && KUL_GPU_FN_PER_NS
 } /* namespace cuda */
