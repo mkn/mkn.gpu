@@ -1,4 +1,5 @@
 
+// IWYU pragma: private, include "kul/gpu/def.hpp"
 
 #ifndef _KUL_GPU_ROCM_DEF_HPP_
 #define _KUL_GPU_ROCM_DEF_HPP_
