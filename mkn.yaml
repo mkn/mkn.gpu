@@ -17,5 +17,6 @@ profile:
 - name: cuda
   parent: headers
   arg: -DKUL_GPU_CUDA
+  #main: test/any/asio.cpp
   test: test/any/(\w).cpp
-        test/cuda/(\w).cpp
+         test/cuda/(\w).cpp
