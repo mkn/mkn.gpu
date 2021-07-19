@@ -268,13 +268,31 @@ inline constexpr auto is_host_mem_v = is_host_mem<T, SIZE_t>::value;
 namespace {
 
 template <typename T>
+struct is_std_unique_ptr : std::false_type {};
+
+template <typename T>
+struct is_std_unique_ptr<std::unique_ptr<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr auto is_std_unique_ptr_v = is_std_unique_ptr<T>::value;
+
+template <typename T>
+struct is_std_shared_ptr : std::false_type {};
+
+template <typename T>
+struct is_std_shared_ptr<std::shared_ptr<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr auto is_std_shared_ptr_v = is_std_shared_ptr<T>::value;
+
+template <typename T>
 auto replace(T& t) {
   if constexpr (is_device_mem_v<T>)
     return t.p;
-  else if constexpr (kul::is_std_unique_ptr_v<T>) {
+  else if constexpr (is_std_unique_ptr_v<T>) {
     static_assert(is_device_mem_v<typename T::element_type>);
     return t->p;
-  } else if constexpr (kul::is_std_shared_ptr_v<T>) {
+  } else if constexpr (is_std_shared_ptr_v<T>) {
     static_assert(is_device_mem_v<typename T::element_type>);
     return t->p;
   } else
