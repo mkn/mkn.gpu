@@ -53,14 +53,21 @@ __device__ SIZE idx() {
   return threadIdx.x + blockIdx.x * blockDim.x;
 }
 
+template <typename SIZE>
+__device__ SIZE idx(SIZE offset) {
+  return (threadIdx.x + blockIdx.x * blockDim.x) + offset;
+}
+
 template <typename T>
-auto handle_input(T& t) {
+auto handle_input(T const& t) {
   if constexpr (is_device_mem_v<T>)
     return t;
+  else if constexpr (std::is_base_of_v<HostClass, T>)
+    return const_cast<T&>(t)();
   else if constexpr (kul::is_span_like_v<T>)
     return std::make_shared<DeviceMem<typename T::value_type>>(t);
   else
-    return t;
+    return std::make_shared<DeviceMem<T>>(&t, 1);
 }
 
 template <std::size_t... I, typename... Args>
@@ -110,7 +117,7 @@ class Launcher {
 
   template <typename F, typename Async, typename... Args>
   auto operator()(F f, Async&& async, Args&&... args) {
-    return *(this)(f, async, args...);
+    return (*this)(f, async, args...);
   }
 
  private:
