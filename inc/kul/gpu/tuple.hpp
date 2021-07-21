@@ -51,6 +51,16 @@ struct Span {
   auto cend() const __device__ __host__ { return ptr + s; }
   SIZE const& size() const __device__ __host__ { return s; }
 
+  auto& front() const __device__ __host__ {
+    assert(s > 0);
+    return ptr[0];
+  }
+
+  auto& back() const __device__ __host__ {
+    assert(s > 0);
+    return ptr[s - 1];
+  }
+
   T* ptr = nullptr;
   SIZE s = 0;
 };

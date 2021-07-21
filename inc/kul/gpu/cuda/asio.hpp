@@ -76,7 +76,7 @@ auto handle_inputs(std::tuple<Args&...>& tup, std::index_sequence<I...>) {
 }
 
 class Launcher {
- private:
+ protected:
   Launcher(dim3 _g, dim3 _b, std::size_t batch_size_ = 1) : batch_size{batch_size_}, g{_g}, b{_b} {}
 
  public:
@@ -90,23 +90,28 @@ class Launcher {
     auto rest = handle_inputs(tuple, std::make_index_sequence<tuple_size>());
     using Tuple = decltype(rest);
     using Batch_t = Batch<Async, Tuple>;
-    auto batch = std::make_unique<Batch_t>(batch_size, async, std::move(rest));
+
+    auto streamSize = async.size() / batch_size;
+    auto buffer_extra = 0;  //(streamSize % b.x);
+    KLOG(DBG) << buffer_extra;
+
+    auto batch = std::make_unique<Batch_t>(batch_size, buffer_extra, async, std::move(rest));
     auto& batch_r = (*batch);
 
-    // Batch batch{batch_size, async, handle_inputs(tuple, std::make_index_sequence<tuple_size>())};
-    auto& _asio = batch->_asio;
-    auto& streams = batch->streams;
-    auto& streamSize = batch->streamSize;
+    g.x = streamSize / b.x;
 
-    auto _g = g;
-    assert(g.x == _g.x);
-    _g.x = streamSize / b.x;
+    KLOG(DBG) << g.x << " " << g.y << " " << g.z;
 
-    for (std::size_t i = 0; i < streams.size(); ++i) {
+    if (buffer_extra > 0) ++g.x;
+
+    KLOG(DBG) << b.x << " " << b.y << " " << b.z;
+    KLOG(DBG) << g.x << " " << g.y << " " << g.z;
+
+    for (std::size_t i = 0; i < batch->streams.size(); ++i) {
       batch_r(i);
       std::apply(
           [&](auto&&... params) {
-            KUL_GPU_NS::launch(f, _g, b, ds, streams[i](), i * streamSize, params...);
+            KUL_GPU_NS::launch(f, g, b, ds, batch->streams[i](), i * streamSize, params...);
           },
           batch_r());
     }
@@ -120,10 +125,89 @@ class Launcher {
     return (*this)(f, async, args...);
   }
 
- private:
+ protected:
   std::size_t batch_size = 1;
-  size_t ds = 0 /*dynamicShared*/;
+  std::size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
+};
+
+class Lambdauncher : Launcher {
+ public:
+  struct Kernfo {
+    std::size_t max, offset;
+  };
+
+ private:
+  template <typename F, typename... Args>
+  __global__ static void kernel(F f, int offset, int max, Args... args) {
+    auto i = kul::gpu::asio::idx(offset);
+    if (i >= max) return;
+    f(i, args...);
+  }
+
+  template <std::size_t... I, typename... Args>
+  auto as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
+    return std::tuple<decltype(KUL_GPU_NS::replace(std::get<I>(tup)))...>{};
+  }
+
+  template <typename F, typename... PArgs, typename... Args>
+  void _launch(std::tuple<PArgs...>&&, Stream& stream, F& f, int max, int offset, Args... args) {
+    KUL_GPU_NS::launch(kernel<F, PArgs...>, g, b, ds, stream(), f, offset, max, args...);
+  }
+
+  template <typename F, typename... Args>
+  void launch(Stream& stream, F& f, int max, int offset, Args... args) {
+    _launch(as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
+            stream, f, max, offset, args...);
+  }
+
+ public:
+  Lambdauncher(std::size_t tpx, std::size_t batch_size_ = 1)
+      : Launcher{dim3(), dim3(tpx), batch_size_} {}
+
+  template <typename F, typename Async, typename... Args>
+  auto operator()(F& f, Async& async, Args&... args) {
+    auto tuple = std::forward_as_tuple(args...);
+    auto constexpr tuple_size = std::tuple_size_v<decltype(tuple)>;
+
+    auto rest = handle_inputs(tuple, std::make_index_sequence<tuple_size>());
+    using Tuple = decltype(rest);
+    using Batch_t = Batch<Async, Tuple>;
+
+    auto streamSize = async.size() / batch_size;
+    auto buffer_extra = 0;  //;
+    KLOG(OTH) << buffer_extra;
+
+    auto batch = std::make_unique<Batch_t>(batch_size, buffer_extra, async, std::move(rest));
+    auto& batch_r = (*batch);
+
+    g.x = streamSize / b.x;
+
+    KLOG(OTH) << g.x << " " << g.y << " " << g.z;
+
+    if ((streamSize % b.x) > 0) ++g.x;
+
+    KLOG(OTH) << b.x << " " << b.y << " " << b.z;
+    KLOG(OTH) << g.x << " " << g.y << " " << g.z;
+
+    std::size_t max = async.size();
+
+    for (std::size_t i = 0; i < batch->streams.size(); ++i) 
+      batch_r(i);
+    for (std::size_t i = 0; i < batch->streams.size(); ++i) 
+      std::apply(
+          [&](auto&&... params) { launch(batch->streams[i], f, max, i * streamSize, params...); },
+          batch_r());
+    
+
+    batch->async_back();
+    return batch;
+  }
+
+  template <typename F, typename Async, typename... Args>
+  auto operator()(F f, Async&& async, Args&&... args) {
+    return (*this)(f, async, args...);
+  }
 };
 
 } /* namespace asio */

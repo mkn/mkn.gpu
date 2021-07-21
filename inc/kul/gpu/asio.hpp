@@ -43,123 +43,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace kul::gpu::asio {
 
-template <typename ASYNC_t>
-struct ChainLoader {
-  using async_value_type = typename ASYNC_t::value_type;
-  using SIZE = std::uint32_t;
-
-  ChainLoader(std::size_t batches_, std::size_t items_) : batches{batches_}, items{items_} {}
-
-  std::size_t batches = 0, items = 0;
-
-  ASYNC_t* ptr = nullptr;
-
-  std::function<void()> load{};
-  std::vector<ASYNC_t const*> data_ptrs{};
-  std::vector<std::size_t> offsets{};
-
-  AsioDeviceMem<async_value_type, SIZE> _asio;
-  std::vector<kul::gpu::Span<async_value_type, SIZE>> spans;
-
-  auto operator()() { return ptr; }
-  void operator()(async_value_type const* data, SIZE size) { spans.emplace_back(data, size); }
-  void operator()(kul::gpu::Span<async_value_type, SIZE>&& data) { spans.emplace_back(data); }
-};
-
-// template <typename ASYNC_t, typename... SYNC_ts>
-// struct BatchTask {
-//   using async_value_type = typename ASYNC_t::value_type;
-//   using sync_tuple = std::tuple<typename SYNC_ts::value_type...>;
-//   using SIZE = std::uint32_t;
-
-//   BatchTask(SIZE _batch_size, ASYNC_t const& _pinned, SYNC_ts const&... _inputs)
-//       : batch_size{_batch_size},
-//         pinned{_pinned},
-//         inputs{std::forward_as_tuple(_inputs...)},
-//         streams{batch_size} {
-//     static_assert(kul::is_span_like_v<ASYNC_t> && (kul::is_span_like_v<SYNC_ts> && ...));
-//     assert(pinned.size() % streams.size() == 0);  // NOPE
-//     streamSize = pinned.size() / streams.size();
-//   }
-
-//   auto& operator[](std::size_t i) {
-//     assert(i < streams.size());
-//     streams[i].sync();
-//     return back_spans[i];
-//   }
-
-//   void operator()(std::size_t batch_idx) {
-//     assert(loader);
-//     // loader(streams[i], pinned.data(), batch_idx);
-//   }
-
-//   auto operator()() { return *(loader)(); }
-
-//   void async_back() {
-//     clear();
-//     _async_back = std::make_unique<HostMem<async_value_type, SIZE>>(pinned.size());
-//     for (std::size_t i = 0; i < streams.size(); ++i) {
-//       auto offset = i * streamSize;
-//       auto& span = back_spans.emplace_back(_async_back->data() + offset, streamSize);
-//       _asio.take(streams[i], span, offset);
-//     }
-//   }
-
-//   void clear() {
-//     back_spans.clear();
-//     _async_back.release();
-//   }
-
-//   SIZE batch_size, streamSize;
-
-//   ASYNC_t const& pinned;  // verify is_host_mem
-//   std::tuple<SYNC_ts const&...> inputs{};
-
-//   std::vector<Stream> streams;
-//   AsioDeviceMem<async_value_type, SIZE> _asio;
-//   std::vector<kul::gpu::Span<async_value_type, SIZE>> back_spans;
-//   std::unique_ptr<HostMem<async_value_type, SIZE>> _async_back;
-
-//   std::shared_ptr<ChainLoader<ASYNC_t>> loader = nullptr;
-// };
-
-// template <typename ASYNC_t, typename... SYNC_ts>
-// struct Batch : BatchTask<ASYNC_t, SYNC_ts...> {
-//   using SIZE = std::uint32_t;
-//   using async_value_type = typename ASYNC_t::value_type;
-//   using sync_tuple = std::tuple<typename SYNC_ts::value_type...>;
-//   using Super = BatchTask<ASYNC_t, SYNC_ts...>;
-//   using Super::_asio;
-//   using Super::pinned;
-//   using Super::streams;
-//   using Super::streamSize;
-
-//   Batch(SIZE _batch_size, ASYNC_t const& _pinned, SYNC_ts const&... _inputs)
-//       : Super{_batch_size, _pinned, _inputs...}, _asio{_pinned.size()} {}
-
-//   void operator()(std::size_t batch_idx) {
-//     _asio.send(streams[batch_idx], pinned.data(), streamSize, batch_idx * streamSize);
-//   }
-
-//   auto operator()() { return _asio.p; }
-
-//   // AsioDeviceMem<async_value_type, SIZE> _asio;
-// };
-
 template <typename ASYNC_t, typename SyncTuple>
 struct Batch {
   using async_value_type = typename ASYNC_t::value_type;
   using SIZE = std::uint32_t;
 
-  Batch(std::size_t _batch_size, ASYNC_t& async, SyncTuple&& rest)
+  void buffered_alloc_size() {}
+
+  Batch(std::size_t _batch_size, std::size_t _extra, ASYNC_t& async, SyncTuple&& rest)
       : batch_size{_batch_size},
+        streamSize{async.size() / _batch_size},
         pinned{async},
         sync_{rest},
         streams{batch_size},
-        _asio{pinned.size()} {
+        _asio{pinned.size() + _extra} {
     static_assert(kul::is_span_like_v<ASYNC_t>);
     assert(pinned.size() % streams.size() == 0);  // NOPE
-    streamSize = pinned.size() / streams.size();
   }
 
   auto& operator[](std::size_t i) {

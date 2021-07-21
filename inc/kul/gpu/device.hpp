@@ -233,6 +233,19 @@ struct HostMem {
   HostMem(SIZE _size) : size_{_size} {
     if (size_ > 0) KUL_GPU_NS::alloc_host(p, size_);
   }
+  
+
+  HostMem(T *const data, std::size_t _size) {    
+    size_ = _size;
+    assert(size_ > 0);
+    KUL_GPU_NS::alloc_host(p, size_);
+    std::copy(data, data + _size, p);
+  }
+  
+  template <template<typename> typename C, std::enable_if_t<kul::is_span_like_v<C<T>>, bool> = 0>
+  HostMem(C<T> const& c) : HostMem{c.data(), c.size()} 
+  {    
+  }
 
   ~HostMem() {
     if (size_ > 0)
@@ -243,6 +256,9 @@ struct HostMem {
     assert(idx < size_);
     return p[idx];
   }
+
+  auto& front() const { return p[0]; }
+  auto& back() const { return p[size_ - 1]; }
 
   auto begin() { return p; }
   auto begin() const { return p; }
