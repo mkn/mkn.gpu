@@ -35,7 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace kul::gpu {
 
-template <typename T, typename SIZE = size_t>
+template <typename T, typename SIZE = std::size_t>
 struct Span {
   using value_type = T;
 
@@ -50,6 +50,16 @@ struct Span {
   auto end() __device__ __host__ { return ptr + s; }
   auto cend() const __device__ __host__ { return ptr + s; }
   SIZE const& size() const __device__ __host__ { return s; }
+
+  auto& front() const __device__ __host__ {
+    assert(s > 0);
+    return ptr[0];
+  }
+
+  auto& back() const __device__ __host__ {
+    assert(s > 0);
+    return ptr[s - 1];
+  }
 
   T* ptr = nullptr;
   SIZE s = 0;

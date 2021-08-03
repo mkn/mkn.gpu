@@ -11,20 +11,19 @@ __global__ void vectoradd(T* a, const T* b, const T* c) {
   a[i] = b[i] + c[i];
 }
 
-template<typename Float>
-uint32_t test_1(){
-  kul::gpu::HostArray<Float, NUM> hostB, hostC;
-  for (uint32_t i = 0; i < NUM; ++i) hostB[i] = i;
-  for (uint32_t i = 0; i < NUM; ++i) hostC[i] = i * 100.0f;
+template <typename Float>
+uint32_t test_1() {
+  kul::gpu::HostArray<Float, NUM> b, c;
+  for (uint32_t i = 0; i < NUM; ++i) b[i] = i;
+  for (uint32_t i = 0; i < NUM; ++i) c[i] = i * 100.0f;
 
-  kul::gpu::DeviceMem<Float> devA(NUM), devB(hostB), devC(hostC);
-  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
-      vectoradd<Float>, devA, devB, devC);
+  kul::gpu::DeviceMem<Float> devA(NUM), devB(b), devC(c);
+  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectoradd<Float>,
+                                                                              devA, devB, devC);
 
-  auto hostA = devA();
-
+  auto a = devA();
   for (uint32_t i = 0; i < NUM; ++i)
-    if (hostA[i] != hostB[i] + hostC[i]) return 1;
+    if (a[i] != b[i] + c[i]) return 1;
 
   return 0;
 }
@@ -35,24 +34,24 @@ __global__ void vectorinc(T* a) {
   a[i] = a[i] + 1;
 }
 
-template<typename Float>
-uint32_t test_2(){
+template <typename Float>
+uint32_t test_2() {
   kul::gpu::HostArray<Float, NUM> host;
   for (uint32_t i = 0; i < NUM; ++i) host[i] = i;
 
   kul::gpu::DeviceMem<Float> dev{host};
-  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
-      vectorinc<Float>, dev);
+  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectorinc<Float>,
+                                                                              dev);
 
-  auto hostA = dev();
-
+  auto a = dev();
   for (uint32_t i = 0; i < NUM; ++i)
-    if (hostA[i] != host[i] + 1) return 1;
+    if (a[i] != host[i] + 1) return 1;
 
   return 0;
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test_1<float>() + test_1<double>() + test_2<float>() + test_2<double>();
+  return test_1<float>() + test_1<double>() +  //
+         test_2<float>() + test_2<double>();
 }

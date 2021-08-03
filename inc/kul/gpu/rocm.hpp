@@ -46,7 +46,115 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace kul::gpu {
 #if defined(KUL_GPU_FN_PER_NS) && KUL_GPU_FN_PER_NS
 namespace hip {
+#define KUL_GPU_NS kul::gpu::hip
+#else
+#define KUL_GPU_NS kul::gpu
 #endif  // KUL_GPU_FN_PER_NS
+
+struct Stream {
+  Stream() { KUL_GPU_ASSERT(result = hipStreamCreate(&stream)); }
+  ~Stream() { KUL_GPU_ASSERT(result = hipStreamDestroy(stream)); }
+
+  auto& operator()() { return stream; };
+
+  void sync() { result = hipStreamSynchronize(stream); }
+
+  hipError_t result;
+  hipStream_t stream;
+};
+
+template <typename Size>
+void alloc(void*& p, Size size) {
+  KUL_GPU_ASSERT(hipMalloc((void**)&p, size));
+}
+
+template <typename T, typename Size>
+void alloc(T*& p, Size size) {
+  KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
+  KUL_GPU_ASSERT(hipMalloc((void**)&p, size * sizeof(T)));
+}
+
+template <typename T, typename Size>
+void alloc_host(T*& p, Size size) {
+  KLOG(TRC) << "CPU alloced: " << size * sizeof(T);
+  KUL_GPU_ASSERT(hipHostMalloc((void**)&p, size * sizeof(T)));
+}
+
+void destroy(void* p) { KUL_GPU_ASSERT(hipFree(p)); }
+
+template <typename T>
+void destroy(T* ptr) {
+  KUL_GPU_ASSERT(hipFree(ptr));
+}
+
+template <typename T>
+void destroy_host(T* ptr) {
+  KUL_GPU_ASSERT(hipHostFree(ptr));
+}
+
+template <typename Size>
+void send(void* p, void* t, Size size = 1) {
+  KUL_GPU_ASSERT(hipMemcpy(p, t, size, hipMemcpyHostToDevice));
+}
+
+template <typename T, typename Size>
+void send(T* p, T const* t, Size size = 1, Size start = 0) {
+  KUL_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
+}
+
+template <typename T, typename Size>
+void take(T* p, T* t, Size size = 1, Size start = 0) {
+  KUL_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
+}
+
+template <typename T, typename Size>
+void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0) {
+  KUL_GPU_ASSERT(hipMemcpyAsync(p + start,              //
+                                t + start,              //
+                                size * sizeof(T),       //
+                                hipMemcpyHostToDevice,  //
+                                stream()));
+}
+
+template <typename T, typename Span>
+void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
+  static_assert(kul::is_span_like_v<Span>);
+  KUL_GPU_ASSERT(hipMemcpyAsync(span.data(),              //
+                                p + start,                //
+                                span.size() * sizeof(T),  //
+                                hipMemcpyDeviceToHost,    //
+                                stream()));
+}
+
+void sync() { KUL_GPU_ASSERT(hipDeviceSynchronize()); }
+
+#include "kul/gpu/device.hpp"
+
+template <typename F, typename... Args>
+void launch(F f, dim3 g, dim3 b, std::size_t ds, hipStream_t& s, Args&&... args) {
+  KLOG(TRC);
+  std::apply(
+      [&](auto&&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); },
+      devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
+}
+
+// https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
+struct Launcher {
+  Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
+  Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
+      : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
+  Launcher(size_t x, size_t y, size_t z, size_t tpx, size_t tpy, size_t tpz)
+      : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
+
+  template <typename F, typename... Args>
+  void operator()(F f, Args&&... args) {
+    launch(f, g, b, ds, s, args...);
+  }
+
+  size_t ds = 0 /*dynamicShared*/;
+  dim3 g /*gridDim*/, b /*blockDim*/;
+  hipStream_t s = 0;
+};
 
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
 void prinfo(size_t dev = 0) {
@@ -61,256 +169,6 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " warpSize       " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
-
-template <typename T, typename SIZE = uint32_t>
-struct DeviceMem {
-
-  using value_type = T;
-
-  DeviceMem() {}
-  DeviceMem(SIZE _s) : s{_s}, owned{true} {
-    SIZE alloc_bytes = s * sizeof(T);
-    KLOG(OTH) << "GPU alloced: " << alloc_bytes;
-    if (s) KUL_GPU_ASSERT(hipMalloc((void**)&p, alloc_bytes));
-  }
-
-  DeviceMem(T const* const t, SIZE _s) : DeviceMem{_s} { send(t, _s); }
-
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  DeviceMem(C const & c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} { }
-
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  DeviceMem(C && c) : DeviceMem{c.data(), static_cast<SIZE>(c.size())} { }
-
-  ~DeviceMem() {
-    if (p && s && owned) KUL_GPU_ASSERT(hipFree(p));
-  }
-
-  void send(T const* const t, SIZE _size = 1, SIZE start = 0) {
-    KUL_GPU_ASSERT(hipMemcpy(p + start, t, _size * sizeof(T), hipMemcpyHostToDevice));
-  }
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  void send(C c, SIZE start = 0) {
-    send(c.data(), c.size(), start);
-  }
-
-  void fill_n(T t, SIZE _size, SIZE start = 0) {
-    // TODO - improve with memSet style
-    assert(_size + start <= s);
-    send(std::vector<T>(_size, t), start);
-  }
-
-  DeviceMem<T> operator+(size_t size) {
-    DeviceMem<T> view;
-    view.p = this->p + size;
-    view.s = this->s - size;
-    return view;
-  }
-
-  template <typename Container>
-  Container& take(Container& c) const {
-    KUL_GPU_ASSERT(hipMemcpy(&c[0], p, s * sizeof(T), hipMemcpyDeviceToHost));
-    return c;
-  }
-
-  template <typename Container = std::vector<T>>
-  Container take() const {
-    Container c(s);
-    return take(c);
-  }
-
-  auto operator()() const { return take(); }
-
-  auto& size() const { return s; }
-
-  SIZE s = 0;
-  T* p = nullptr;
-  bool owned = false;
-};
-
-template <typename T>
-struct is_device_mem : std::false_type {};
-
-template <typename T>
-struct is_device_mem<DeviceMem<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr auto is_device_mem_v = is_device_mem<T>::value;
-
-template <bool GPU>
-struct ADeviceClass {};
-
-template <>
-struct ADeviceClass<true> {};
-
-template <>
-struct ADeviceClass<false> {
-  ~ADeviceClass() { invalidate(); }
-
-  void _alloc(void* ptrs, uint8_t size) {
-    KUL_GPU_ASSERT(hipMalloc((void**)&ptr, size));
-    KUL_GPU_ASSERT(hipMemcpy(ptr, ptrs, size, hipMemcpyHostToDevice));
-  }
-
-  template <typename as, typename... DevMems>
-  auto alloc(DevMems&... mem) {
-    if (ptr) throw std::runtime_error("already malloc-ed");
-    auto ptrs = make_pointer_container(mem.p...);
-    static_assert(sizeof(as) == sizeof(ptrs), "Class cast type size mismatch");
-
-    _alloc(&ptrs, sizeof(ptrs));
-    return static_cast<as*>(ptr);
-  }
-
-  void invalidate() {
-    if (ptr) {
-      KUL_GPU_ASSERT(hipFree(ptr));
-      ptr = nullptr;
-    }
-  }
-
-  void* ptr = nullptr;
-};
-
-template <bool GPU = false>
-struct DeviceClass : ADeviceClass<GPU> {
-  template <typename T, typename SIZE = uint32_t>
-  using container_t = std::conditional_t<GPU, T*, DeviceMem<T, SIZE>>;
-};
-
-using HostClass = DeviceClass<false>;
-
-namespace {
-
-template <typename T>
-auto replace(T& t) {
-  if constexpr (is_device_mem_v<T>)
-    return t.p;
-  else
-    return t;
-}
-
-template <std::size_t... IS, typename... Args>
-auto devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<IS...>) {
-  return std::make_tuple(replace(std::get<IS>(tup))...);
-}
-
-} /* namespace */
-
-void sync() { KUL_GPU_ASSERT(hipDeviceSynchronize()); }
-
-// https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
-struct Launcher {
-  Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
-  Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
-      : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
-  Launcher(size_t x, size_t y, size_t z, size_t tpx, size_t tpy, size_t tpz)
-      : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
-
-  template <typename F, typename... Args>
-  void operator()(F f, Args&&... args) {
-    sync();
-    std::apply([&](auto&&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); },
-               devmem_replace(std::forward_as_tuple(args...),
-                              std::make_index_sequence<sizeof...(Args)>()));
-  }
-
-  size_t ds = 0 /*dynamicShared*/;
-  dim3 g /*gridDim*/, b /*blockDim*/;
-  hipStream_t s = 0;
-};
-
-template <typename T, typename V>
-void fill_n(DeviceMem<T>& p, size_t size, V val) {
-  p.fill_n(val, size);
-}
-
-template <typename T, typename V>
-void fill_n(DeviceMem<T>&& p, size_t size, V val) {
-  fill_n(p, size, val);
-}
-
-template <typename T, typename SIZE, SIZE size_>
-struct HostArrayBase {
-
-  using value_type = T;
-
-  HostArrayBase(HostArrayBase const&) = delete;
-
-  HostArrayBase() {
-    SIZE alloc_bytes = size_ * sizeof(T);
-    KLOG(OTH) << "CPU alloced: " << alloc_bytes;
-    if constexpr (size_ > 0) KUL_GPU_ASSERT(hipHostMalloc((void**)&p, alloc_bytes));
-  }
-
-  ~HostArrayBase() {
-    if constexpr (size_ > 0) if (p) KUL_GPU_ASSERT(hipHostFree(p));
-  }
-
-  auto& operator[](SIZE idx){
-    assert(idx < size_);
-    return p[idx];
-  }
-  auto& operator[](SIZE idx) const {
-    assert(idx < size_);
-    return p[idx];
-  }
-
-  auto begin() { return p; }
-  auto begin() const { return p; }
-  auto end() { return p + size_; }
-  auto end() const { return p + size_; }
-  auto* data() { return p; }
-  auto* data() const { return p; }
-
-  constexpr auto size() const { return size_; }
-
-  T* p = nullptr;
-};
-
-template <typename T, typename SIZE_t = std::uint32_t>
-struct HostMem {
-
-  using value_type = T;
-  using SIZE = SIZE_t;
-
-  HostMem(HostMem & that) : p{that.p}, size_{that.size_} {
-    that.p = nullptr;
-  }
-
-  HostMem(SIZE _size) : size_{_size}{
-    SIZE alloc_bytes = size_ * sizeof(T);
-    KLOG(OTH) << "CPU alloced: " << alloc_bytes;
-    if (size_ > 0) KUL_GPU_ASSERT(hipHostMalloc((void**)&p, alloc_bytes));
-  }
-
-  ~HostMem() {
-    if (size_ > 0) if (p) KUL_GPU_ASSERT(hipHostFree(p));
-  }
-
-  auto& operator[](SIZE idx){
-    assert(idx < size_);
-    return p[idx];
-  }
-
-  auto begin() { return p; }
-  auto begin() const { return p; }
-  auto end() { return p + size_; }
-  auto end() const { return p + size_; }
-  auto* data() { return p; }
-  auto* data() const { return p; }
-  auto size() const { return size_; }
-
-  T* p = nullptr;
-  SIZE size_;
-};
-
-
-template <typename T, std::uint32_t size>
-using HostArray = HostArrayBase<T, std::uint32_t, size>;
-
-template <typename T, std::size_t size>
-using BigHostArray = HostArrayBase<T, std::size_t, size>;
 
 #if defined(KUL_GPU_FN_PER_NS) && KUL_GPU_FN_PER_NS
 } /* namespace hip */

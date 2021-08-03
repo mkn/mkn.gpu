@@ -11,8 +11,8 @@ __global__ void vectoradd(T* a, const T* b, const T* c) {
   a[i] = b[i] + c[i];
 }
 
-template<typename Float>
-uint32_t test(){
+template <typename Float>
+uint32_t test() {
   std::vector<Float> hostB(NUM), hostC(NUM);
   for (uint32_t i = 0; i < NUM; i++) hostB[i] = i;
   for (uint32_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;
