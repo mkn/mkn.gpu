@@ -72,7 +72,8 @@ struct Batch {
 
   void async_back() {
     clear();
-    _async_back = std::make_unique<HostMem<async_value_type>>(pinned.size());
+    if(!_async_back)
+      _async_back = std::make_unique<HostMem<async_value_type>>(pinned.size());
     for (std::size_t i = 0; i < streams.size(); ++i) {
       auto offset = i * streamSize;
       auto& span = spans.emplace_back(_async_back->data() + offset, streamSize);
@@ -82,7 +83,7 @@ struct Batch {
 
   void clear() {
     spans.clear();
-    _async_back.release();
+    //_async_back.release();
   }
 
   void operator()(std::size_t batch_idx) {
