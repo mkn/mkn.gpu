@@ -3,9 +3,9 @@
 #   mkn clean build test -Op cuda -x res/mkn/clang10_nvcc -a --cuda-gpu-arch="sm_61" -l -lcudart
 
 
-# local:
-#   repo: /mkn/r
-#   mod-repo: /mkn/m
+local:
+  repo: /mkn/r
+  mod-repo: /mkn/m
 
 # remote:
 #   repo: git@github.com:mkn/
@@ -18,10 +18,10 @@ compiler:
 
 ##example include path for system
 #inc: /usr/local/cuda-10.2/targets/x86_64-linux/include
-inc: /usr/local/cuda/targets/x86_64-linux/include
+#inc: /usr/local/cuda/targets/x86_64-linux/include
 ##example library path for system
 #path: /usr/local/cuda-10.2/targets/x86_64-linux/lib
-path: /usr/local/cuda/targets/x86_64-linux/lib
+#path: /usr/local/cuda/targets/x86_64-linux/lib
 
 ## The following compile flags will likely be required with their specific values for your current hardware
 # --cuda-gpu-arch="sm_61"  # sm_61 = nvidia 1080 (see: http://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards )

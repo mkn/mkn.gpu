@@ -63,7 +63,7 @@ struct DeviceMem {
   }
 
   template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  void send(C c, std::size_t start = 0) {
+  void send(C const& c, std::size_t start = 0) {
     send(c.data(), c.size(), start);
   }
 
@@ -80,22 +80,23 @@ struct DeviceMem {
     return view;
   }
 
-  void take(T* to) const { KUL_GPU_NS::take(p, to, s); }
+  void take(T* to, std::size_t size) { KUL_GPU_NS::take(p, to, size); }
+  void take(T* to) { KUL_GPU_NS::take(p, to, s); }
 
   template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  C& take(C& c) const {
-    take(c.data());
+  C& take(C& c) {
+    take(c.data(), c.size());
     return c;
   }
 
   template <typename C = std::vector<T>, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
-  C take() const {
+  C take() {
     C c(s);
     return take(c);
   }
 
-  auto operator()(T* to) const { return take(to); }
-  auto operator()() const { return take(); }
+  auto operator()(T* to) { return take(to); }
+  auto operator()() { return take(); }
 
   auto& size() const { return s; }
 
