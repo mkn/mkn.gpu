@@ -10,17 +10,18 @@ struct S {
   double d0 = 1;
 };
 
-__global__ void kernel(S * structs) {
+__global__ void kernel(S* structs) {
   auto i = kul::gpu::idx();
   structs[i].f0 = structs[i].d0 + 1;
 }
 
-uint32_t test(){
+uint32_t test() {
   std::vector<S> host{NUM};
   for (uint32_t i = 0; i < NUM; ++i) host[i].d0 = i;
   kul::gpu::DeviceMem<S> dev{host};
   kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(kernel, dev);
-  for (auto const& s : dev()) if (s.f0 != s.d0 + 1) return 1;
+  for (auto const& s : dev())
+    if (s.f0 != s.d0 + 1) return 1;
   return 0;
 }
 

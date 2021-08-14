@@ -19,3 +19,10 @@ profile:
   arg: -DKUL_GPU_CUDA
   test: test/any/(\w).cpp
         test/cuda/(\w).cpp
+
+
+- name: format
+  mod: |
+    clang.format{init{style: file, paths: inc}}
+
+
