@@ -56,8 +56,6 @@ struct Batch {
   using This = Batch<ASYNC_t, SyncTuple>;
   using SIZE = std::uint32_t;
 
-  void buffered_alloc_size() {}
-
   template <typename... Args>
   Batch(std::size_t _n_batches, ASYNC_t& async, Args&&... args)
       : n_batches{_n_batches},
