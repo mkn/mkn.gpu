@@ -41,20 +41,31 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace kul::gpu::asio {
 
+struct BatchTuple {
+  template <typename... Args>
+  constexpr static auto type(Args&&... args) {
+    auto tuple = std::forward_as_tuple(args...);
+    auto constexpr tuple_size = std::tuple_size_v<decltype(tuple)>;
+    return handle_inputs(tuple, std::make_index_sequence<tuple_size>());
+  }
+};
+
 template <typename ASYNC_t, typename SyncTuple>
 struct Batch {
   using async_value_type = typename std::decay_t<ASYNC_t>::value_type;
+  using This = Batch<ASYNC_t, SyncTuple>;
   using SIZE = std::uint32_t;
 
   void buffered_alloc_size() {}
 
-  Batch(std::size_t _n_batches, ASYNC_t& async, SyncTuple&& rest)
+  template <typename... Args>
+  Batch(std::size_t _n_batches, ASYNC_t& async, Args&&... args)
       : n_batches{_n_batches},
         streamSize{async.size() / _n_batches},
         pinned{async},
         streams{n_batches},
         _asio{pinned.size()},
-        sync_{rest} {
+        sync_{BatchTuple::type(args...)} {
     static_assert(kul::is_span_like_v<ASYNC_t>);
     assert(pinned.size() > 0);
     assert(_asio.s > 0);
@@ -72,8 +83,7 @@ struct Batch {
 
   void async_back() {
     clear();
-    if(!_async_back)
-      _async_back = std::make_unique<HostMem<async_value_type>>(pinned.size());
+    if (!_async_back) _async_back = std::make_unique<HostMem<async_value_type>>(pinned.size());
     for (std::size_t i = 0; i < streams.size(); ++i) {
       auto offset = i * streamSize;
       auto& span = spans.emplace_back(_async_back->data() + offset, streamSize);
@@ -81,16 +91,17 @@ struct Batch {
     }
   }
 
-  void clear() {
-    spans.clear();
-    //_async_back.release();
-  }
+  void clear() { spans.clear(); }
 
   void operator()(std::size_t batch_idx) {
     _asio.send(streams[batch_idx], pinned.data(), streamSize, batch_idx * streamSize);
   }
 
   auto operator()() { return std::tuple_cat(std::forward_as_tuple(_asio), sync_); }
+
+  void send() {
+    for (std::size_t batch_idx = 0; batch_idx < n_batches; ++batch_idx) (*this)(batch_idx);
+  }
 
   void sync() {
     for (auto& stream : streams) stream.sync();
@@ -108,6 +119,19 @@ struct Batch {
   std::unique_ptr<HostMem<async_value_type>> _async_back;
 
   SyncTuple sync_;
+};
+
+struct BatchMaker {
+  template <typename ASYNC_t, typename... Args>
+  static auto make_unique(std::size_t n, ASYNC_t& async, Args&&... args) {
+    return std::make_unique<
+        kul::gpu::asio::Batch<ASYNC_t, decltype(kul::gpu::asio::BatchTuple::type(args...))>>(
+        n, async, args...);
+  }
+  template <typename ASYNC_t, typename... Args>
+  static auto make_unique(ASYNC_t& async, Args&&... args) {
+    return make_unique(1, async, args...);
+  }
 };
 
 class Launcher {
@@ -142,11 +166,8 @@ class Launcher {
 
   template <typename F, typename Async, typename... Args>
   auto operator()(F&& f, Async& async, Args&&... args) {
-    auto tuple = std::forward_as_tuple(args...);
-    auto constexpr tuple_size = std::tuple_size_v<decltype(tuple)>;
-    using Rest = decltype(handle_inputs(tuple, std::make_index_sequence<tuple_size>()));
-    auto batch_ptr = std::make_unique<Batch<Async, Rest>>(
-        n_batches, async, handle_inputs(tuple, std::make_index_sequence<tuple_size>()));
+    using Rest = decltype(BatchTuple::type(args...));
+    auto batch_ptr = std::make_unique<Batch<Async, Rest>>(n_batches, async, args...);
     this->launch(f, *batch_ptr);
     return batch_ptr;
   }

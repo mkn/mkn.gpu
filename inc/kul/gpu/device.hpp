@@ -169,7 +169,7 @@ struct ADeviceClass<false> {
   auto alloc(DevMems&... mem) {
     auto ptrs = make_pointer_container(mem.p...);
     static_assert(sizeof(as) == sizeof(ptrs), "Class cast type size mismatch");
-    _alloc(&ptrs, sizeof(ptrs));    
+    _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
   }
 
@@ -311,13 +311,13 @@ template <typename T>
 struct is_ref_devmen<std::reference_wrapper<DeviceMem<T>>> : std::true_type {};
 template <typename T>
 inline constexpr auto is_ref_devmen_v = is_ref_devmen<T>::value;
-    
+
 template <typename T>
 struct is_ref_wrap : std::false_type {};
 template <typename T>
 struct is_ref_wrap<std::reference_wrapper<T>> : std::true_type {};
 template <typename T>
-inline constexpr auto is_ref_wrap_v = is_ref_wrap<T>::value; 
+inline constexpr auto is_ref_wrap_v = is_ref_wrap<T>::value;
 
 template <typename T>
 struct is_asio_mem : std::false_type {};
@@ -325,10 +325,6 @@ template <typename T>
 struct is_asio_mem<AsioDeviceMem<T>> : std::true_type {};
 template <typename T>
 inline constexpr auto is_asio_mem_v = is_asio_mem<T>::value;
-    
-
-    
-    
 
 template <typename T0>
 auto handle_input(T0& t) {
@@ -349,25 +345,22 @@ auto handle_inputs(std::tuple<Args&...>& tup, std::index_sequence<I...>) {
   return std::make_tuple(handle_input(std::get<I>(tup))...);
 }
 
-template<typename T>
-constexpr bool t_is_lval(){
-  if constexpr (is_ref_wrap_v<T>)    
-    return (std::is_base_of_v<DeviceClass<false>, typename T::type>);  
-  return  (std::is_base_of_v<DeviceClass<false>, T>);
+template <typename T>
+constexpr bool t_is_lval() {
+  if constexpr (is_ref_wrap_v<T>) return (std::is_base_of_v<DeviceClass<false>, typename T::type>);
+  return (std::is_base_of_v<DeviceClass<false>, T>);
 }
 
-template<typename T0, std::enable_if_t<t_is_lval<T0>(), int> = 0>
-auto replace(T0& t){
+template <typename T0, std::enable_if_t<t_is_lval<T0>(), int> = 0>
+auto replace(T0& t) {
   using T = std::decay_t<T0>;
   KLOG(TRC) << typeid(t).name();
   if constexpr (is_ref_wrap_v<T>)
-      if constexpr(std::is_base_of_v<DeviceClass<false>, typename T::type>)
-          return t()();   
-  if constexpr (std::is_base_of_v<DeviceClass<false>, T>) 
-    return t();
+    if constexpr (std::is_base_of_v<DeviceClass<false>, typename T::type>) return t()();
+  if constexpr (std::is_base_of_v<DeviceClass<false>, T>) return t();
 }
 
-template<typename T0, std::enable_if_t<!t_is_lval<T0>(), int> = 0>
+template <typename T0, std::enable_if_t<!t_is_lval<T0>(), int> = 0>
 auto& replace(T0& t) {
   using T = std::decay_t<T0>;
   KLOG(TRC) << typeid(t).name();
@@ -382,9 +375,7 @@ auto& replace(T0& t) {
     assert(t.p != nullptr);
     return t.p;
   } else if constexpr (std::is_base_of_v<DeviceClass<false>, T>) {
-//     throw std::runtime_error("NO");
-//     static_assert(!std::is_base_of_v<DeviceClass<false>, T>);
-//     return t();
+    // not supported
   } else if constexpr (std::is_base_of_v<DeviceClass<true>, T>) {
     return t;
   } else if constexpr (is_std_unique_ptr_v<T>) {
