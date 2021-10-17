@@ -28,29 +28,29 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _KUL_GPU_HPP_
-#define _KUL_GPU_HPP_
+#ifndef _MKN_GPU_HPP_
+#define _MKN_GPU_HPP_
 
-#if defined(KUL_GPU_ROCM)
-#include "kul/gpu/rocm.hpp"
-#elif defined(KUL_GPU_CUDA)
-#include "kul/gpu/cuda.hpp"
-#elif !defined(KUL_GPU_FN_PER_NS) || KUL_GPU_FN_PER_NS == 0
-#error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#if defined(MKN_GPU_ROCM)
+#include "mkn/gpu/rocm.hpp"
+#elif defined(MKN_GPU_CUDA)
+#include "mkn/gpu/cuda.hpp"
+#elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
+#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 
-namespace kul::gpu {
+namespace mkn::gpu {
 
 __device__ uint32_t idx() {
-#if defined(KUL_GPU_ROCM)
-  return kul::gpu::hip::idx();
-#elif defined(KUL_GPU_CUDA)
-  return kul::gpu::cuda::idx();
+#if defined(MKN_GPU_ROCM)
+  return mkn::gpu::hip::idx();
+#elif defined(MKN_GPU_CUDA)
+  return mkn::gpu::cuda::idx();
 #else
-#error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 }
 
-} /* namespace kul::gpu */
+} /* namespace mkn::gpu */
 
-#endif /* _KUL_GPU_HPP_ */
+#endif /* _MKN_GPU_HPP_ */

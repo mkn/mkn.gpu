@@ -28,12 +28,12 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _KUL_GPU_TUPLE_HPP_
-#define _KUL_GPU_TUPLE_HPP_
+#ifndef _MKN_GPU_TUPLE_HPP_
+#define _MKN_GPU_TUPLE_HPP_
 
-#include "kul/gpu.hpp"
+#include "mkn/gpu.hpp"
 
-namespace kul::gpu {
+namespace mkn::gpu {
 
 template <typename T, typename SIZE = std::size_t>
 struct Span {
@@ -66,14 +66,14 @@ struct Span {
 };
 
 template <typename T, typename SIZE, bool GPU>
-struct ASpanSet : kul::gpu::DeviceClass<GPU> {};
+struct ASpanSet : mkn::gpu::DeviceClass<GPU> {};
 
 template <typename T, typename SIZE>
-struct ASpanSet<T, SIZE, true> : kul::gpu::DeviceClass<true> {};
+struct ASpanSet<T, SIZE, true> : mkn::gpu::DeviceClass<true> {};
 
 template <typename T, typename SIZE>
-struct ASpanSet<T, SIZE, false> : kul::gpu::DeviceClass<false> {
-  kul::SpanSet<T, SIZE> base;
+struct ASpanSet<T, SIZE, false> : mkn::gpu::DeviceClass<false> {
+  mkn::SpanSet<T, SIZE> base;
 };
 
 template <typename T, typename SIZE = size_t, bool GPU = false>
@@ -107,7 +107,7 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  kul::SpanSet<T, SIZE>& take() {
+  mkn::SpanSet<T, SIZE>& take() {
     Super::base.vec = std::move(vec.take());
     return Super::base;
   }
@@ -152,6 +152,6 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
   container_t<T> vec;
 };
 
-}  // end namespace kul::gpu
+}  // end namespace mkn::gpu
 
-#endif /* _KUL_GPU_TUPLE_HPP_ */
+#endif /* _MKN_GPU_TUPLE_HPP_ */

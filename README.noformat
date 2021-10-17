@@ -6,22 +6,22 @@ CUDA/HIP C++17 convenience wrappers
 
 Compile argument switches
 
-Key             KUL_GPU_CUDA
+Key             MKN_GPU_CUDA
 Type            bool
 Default         0
 Example         mkn cuda profile
-Description     activate CUDA as impl of kul::gpu::*
+Description     activate CUDA as impl of mkn::gpu::*
 
-Key             KUL_GPU_ROCM
+Key             MKN_GPU_ROCM
 Type            bool
 Default         0
 Example         mkn rocm profile
-Description     activate ROCM as impl of kul::gpu::*
+Description     activate ROCM as impl of mkn::gpu::*
 
-Key             KUL_GPU_FN_PER_NS
+Key             MKN_GPU_FN_PER_NS
 Type            bool
 Default         0
 Example         test/hip/add.cpp or test/cuda/add.cpp
 Description     expose functions explicitly via
-                   kul::gpu::hip::*
-                   kul::gpu::cuda::*
+                   mkn::gpu::hip::*
+                   mkn::gpu::cuda::*

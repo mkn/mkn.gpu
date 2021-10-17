@@ -10,13 +10,13 @@ profile:
 
 - name: rocm
   parent: headers
-  arg: -DKUL_GPU_ROCM
+  arg: -DMKN_GPU_ROCM
   test: test/any/(\w).cpp
         test/hip/(\w).cpp
 
 - name: cuda
   parent: headers
-  arg: -DKUL_GPU_CUDA
+  arg: -DMKN_GPU_CUDA
   test: test/any/(\w).cpp
         test/cuda/(\w).cpp
 
