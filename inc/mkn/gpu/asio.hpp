@@ -28,18 +28,18 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _KUL_GPU_ASIO_HPP_
-#define _KUL_GPU_ASIO_HPP_
+#ifndef _MKN_GPU_ASIO_HPP_
+#define _MKN_GPU_ASIO_HPP_
 
-#if defined(KUL_GPU_ROCM)
-#elif defined(KUL_GPU_CUDA)
-#elif !defined(KUL_GPU_FN_PER_NS) || KUL_GPU_FN_PER_NS == 0
-#error "UNKNOWN GPU / define KUL_GPU_ROCM or KUL_GPU_CUDA"
+#if defined(MKN_GPU_ROCM)
+#elif defined(MKN_GPU_CUDA)
+#elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
+#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 
-#include "kul/gpu/tuple.hpp"
+#include "mkn/gpu/tuple.hpp"
 
-namespace kul::gpu::asio {
+namespace mkn::gpu::asio {
 
 struct BatchTuple {
   template <typename... Args>
@@ -64,7 +64,7 @@ struct Batch {
         streams{n_batches},
         _asio{pinned.size()},
         sync_{BatchTuple::type(args...)} {
-    static_assert(kul::is_span_like_v<ASYNC_t>);
+    static_assert(mkn::is_span_like_v<ASYNC_t>);
     assert(pinned.size() > 0);
     assert(_asio.s > 0);
     assert(_asio.p != nullptr);
@@ -113,7 +113,7 @@ struct Batch {
 
   std::vector<Stream> streams;
   AsioDeviceMem<async_value_type> _asio;
-  std::vector<kul::gpu::Span<async_value_type>> spans;
+  std::vector<mkn::gpu::Span<async_value_type>> spans;
   std::unique_ptr<HostMem<async_value_type>> _async_back;
 
   SyncTuple sync_;
@@ -123,7 +123,7 @@ struct BatchMaker {
   template <typename ASYNC_t, typename... Args>
   static auto make_unique(std::size_t n, ASYNC_t& async, Args&&... args) {
     return std::make_unique<
-        kul::gpu::asio::Batch<ASYNC_t, decltype(kul::gpu::asio::BatchTuple::type(args...))>>(
+        mkn::gpu::asio::Batch<ASYNC_t, decltype(mkn::gpu::asio::BatchTuple::type(args...))>>(
         n, async, args...);
   }
   template <typename ASYNC_t, typename... Args>
@@ -173,7 +173,7 @@ class Launcher {
  protected:
   template <typename F, typename... Args>
   __global__ static void kernel(F&& f, int max, int batch_index, Args... args) {
-    auto bi = kul::gpu::idx();
+    auto bi = mkn::gpu::idx();
     if (bi < max) {
       f(bi + (max * batch_index), args...);
     }
@@ -181,12 +181,12 @@ class Launcher {
 
   template <std::size_t... I, typename... Args>
   auto as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
-    return (std::tuple<decltype(KUL_GPU_NS::replace(std::get<I>(tup)))&...>*){nullptr};
+    return (std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*){nullptr};
   }
 
   template <typename F, typename... PArgs, typename... Args>
   void _launch(F&& f, std::tuple<PArgs&...>*, Stream& stream, int max, int offset, Args&&... args) {
-    KUL_GPU_NS::launch(kernel<F&&, PArgs...>, g, b, ds, stream(), f, max, offset, args...);
+    MKN_GPU_NS::launch(kernel<F&&, PArgs...>, g, b, ds, stream(), f, max, offset, args...);
   }
 
   template <typename F, typename... Args>
@@ -204,18 +204,18 @@ class Launcher {
   bool m_send = 1, m_receive = 1;
 };
 
-}  // namespace kul::gpu::asio
+}  // namespace mkn::gpu::asio
 
 namespace std {
 template <std::size_t index, typename ASYNC_t, typename SyncTuple>
-auto& get(kul::gpu::asio::Batch<ASYNC_t, SyncTuple> const& batch) {
+auto& get(mkn::gpu::asio::Batch<ASYNC_t, SyncTuple> const& batch) {
   return std::get<index>(batch.sync_);
 }
 
 template <std::size_t index, typename ASYNC_t, typename SyncTuple>
-auto& get(kul::gpu::asio::Batch<ASYNC_t, SyncTuple>& batch) {
+auto& get(mkn::gpu::asio::Batch<ASYNC_t, SyncTuple>& batch) {
   return std::get<index>(batch.sync_);
 }
 }  // namespace std
 
-#endif /* _KUL_GPU_ASIO_HPP_ */
+#endif /* _MKN_GPU_ASIO_HPP_ */

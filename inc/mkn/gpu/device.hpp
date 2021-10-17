@@ -28,9 +28,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-// IWYU pragma: private, include "kul/gpu.hpp"
-#ifndef _KUL_GPU_DEVICE_HPP_
-#define _KUL_GPU_DEVICE_HPP_
+// IWYU pragma: private, include "mkn/gpu.hpp"
+#ifndef _MKN_GPU_DEVICE_HPP_
+#define _MKN_GPU_DEVICE_HPP_
 
 template <typename T>
 struct DeviceMem {
@@ -48,10 +48,10 @@ struct DeviceMem {
 
   DeviceMem(T const* t, std::size_t _s) : DeviceMem{_s} { send(t, _s); }
 
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
   DeviceMem(C const& c) : DeviceMem{c.data(), c.size()} {}
 
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
   DeviceMem(C&& c) : DeviceMem{c.data(), c.size()} {}
 
   ~DeviceMem() {
@@ -59,10 +59,10 @@ struct DeviceMem {
   }
 
   void send(T const* t, std::size_t _size = 1, std::size_t start = 0) {
-    KUL_GPU_NS::send(p, t, _size, start);
+    MKN_GPU_NS::send(p, t, _size, start);
   }
 
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
   void send(C const& c, std::size_t start = 0) {
     send(c.data(), c.size(), start);
   }
@@ -80,16 +80,16 @@ struct DeviceMem {
     return view;
   }
 
-  void take(T* to, std::size_t size) { KUL_GPU_NS::take(p, to, size); }
-  void take(T* to) { KUL_GPU_NS::take(p, to, s); }
+  void take(T* to, std::size_t size) { MKN_GPU_NS::take(p, to, size); }
+  void take(T* to) { MKN_GPU_NS::take(p, to, s); }
 
-  template <typename C, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
   C& take(C& c) {
     take(c.data(), c.size());
     return c;
   }
 
-  template <typename C = std::vector<T>, std::enable_if_t<kul::is_span_like_v<C>, bool> = 0>
+  template <typename C = std::vector<T>, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
   C take() {
     C c(s);
     return take(c);
@@ -114,25 +114,25 @@ struct AsioDeviceMem {
 
   AsioDeviceMem(std::size_t _s = 0) : s{_s} {
     assert(p == nullptr);
-    if (s) KUL_GPU_NS::alloc(p, s);
+    if (s) MKN_GPU_NS::alloc(p, s);
     assert(p != nullptr);
   }
 
   ~AsioDeviceMem() {
-    if (p && s) KUL_GPU_NS::destroy(p);
+    if (p && s) MKN_GPU_NS::destroy(p);
     p = nullptr;
   }
 
   void send(Stream& stream, T* t, std::size_t _size = 1, std::size_t start = 0) {
     assert(p != nullptr);
-    KUL_GPU_NS::send_async(p, t, stream, _size, start);
+    MKN_GPU_NS::send_async(p, t, stream, _size, start);
   }
 
   template <typename Span>
   void take(Stream& stream, Span& span, std::size_t start) {
     assert(p != nullptr);
     assert(span.size() + start <= s);
-    KUL_GPU_NS::take_async(p, span, stream, start);
+    MKN_GPU_NS::take_async(p, span, stream, start);
   }
 
   auto& size() const { return s; }
@@ -161,8 +161,8 @@ struct ADeviceClass<false> {
   ~ADeviceClass() { invalidate(); }
 
   void _alloc(void* ptrs, uint8_t size) {
-    if (!ptr) KUL_GPU_NS::alloc(ptr, size);
-    KUL_GPU_NS::send(ptr, ptrs, size);
+    if (!ptr) MKN_GPU_NS::alloc(ptr, size);
+    MKN_GPU_NS::send(ptr, ptrs, size);
   }
 
   template <typename as, typename... DevMems>
@@ -208,12 +208,12 @@ struct HostArray {
   HostArray(HostArray const&) = delete;
 
   HostArray() {
-    if constexpr (size_ > 0) KUL_GPU_NS::alloc_host(p, size_);
+    if constexpr (size_ > 0) MKN_GPU_NS::alloc_host(p, size_);
   }
 
   ~HostArray() {
     if constexpr (size_ > 0)
-      if (p) KUL_GPU_NS::destroy_host(p);
+      if (p) MKN_GPU_NS::destroy_host(p);
   }
 
   auto& operator[](std::size_t idx) {
@@ -244,22 +244,22 @@ struct HostMem {
   HostMem(HostMem& that) : p{that.p}, size_{that.size_} { that.p = nullptr; }
 
   HostMem(std::size_t _size) : size_{_size} {
-    if (size_ > 0) KUL_GPU_NS::alloc_host(p, size_);
+    if (size_ > 0) MKN_GPU_NS::alloc_host(p, size_);
   }
 
   HostMem(T* const data, std::size_t _size) {
     size_ = _size;
     assert(size_ > 0);
-    KUL_GPU_NS::alloc_host(p, size_);
+    MKN_GPU_NS::alloc_host(p, size_);
     std::copy(data, data + _size, p);
   }
 
-  template <template <typename> typename C, std::enable_if_t<kul::is_span_like_v<C<T>>, bool> = 0>
+  template <template <typename> typename C, std::enable_if_t<mkn::is_span_like_v<C<T>>, bool> = 0>
   HostMem(C<T> const& c) : HostMem{c.data(), c.size()} {}
 
   ~HostMem() {
     if (size_ > 0)
-      if (p) KUL_GPU_NS::destroy_host(p);
+      if (p) MKN_GPU_NS::destroy_host(p);
   }
 
   auto& operator[](std::size_t idx) {
@@ -333,7 +333,7 @@ auto handle_input(T0& t) {
     return std::ref(t);
   } else if constexpr (std::is_base_of_v<DeviceClass<false>, T>) {
     return std::ref(t);
-  } else if constexpr (kul::is_span_like_v<T>) {
+  } else if constexpr (mkn::is_span_like_v<T>) {
     return std::make_shared<DeviceMem<typename T::value_type>>(t);
   } else {
     return std::make_shared<DeviceMem<T>>(&t, 1);
@@ -397,4 +397,4 @@ auto devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
 
 } /* namespace */
 
-#endif /* _KUL_GPU_DEVICE_HPP_ */
+#endif /* _MKN_GPU_DEVICE_HPP_ */

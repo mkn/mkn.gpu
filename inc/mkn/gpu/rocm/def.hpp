@@ -1,12 +1,12 @@
 
-// IWYU pragma: private, include "kul/gpu/def.hpp"
+// IWYU pragma: private, include "mkn/gpu/def.hpp"
 
-#ifndef _KUL_GPU_ROCM_DEF_HPP_
-#define _KUL_GPU_ROCM_DEF_HPP_
+#ifndef _MKN_GPU_ROCM_DEF_HPP_
+#define _MKN_GPU_ROCM_DEF_HPP_
 
 #include "hip/hip_runtime.h"
 
-namespace kul::gpu::hip {
+namespace mkn::gpu::hip {
 
 template <typename SIZE = uint32_t /*max 4294967296*/>
 __device__ SIZE idx() {
@@ -19,6 +19,6 @@ __device__ SIZE idx() {
   return x + (y * width) + (z * width * height);  // max 4294967296
 }
 
-}  // namespace kul::gpu::hip
+}  // namespace mkn::gpu::hip
 
-#endif /*_KUL_GPU_ROCM_DEF_HPP_*/
+#endif /*_MKN_GPU_ROCM_DEF_HPP_*/
