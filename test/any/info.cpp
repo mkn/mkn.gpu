@@ -1,8 +1,8 @@
 
-#include "kul/gpu.hpp"
+#include "mkn/kul/gpu.hpp"
 
 int main() {
   KOUT(NON) << __FILE__;
-  kul::gpu::prinfo();
+  mkn::gpu::prinfo();
   return 0;
 }
