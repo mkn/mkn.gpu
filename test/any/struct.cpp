@@ -1,5 +1,5 @@
 
-#include "kul/gpu.hpp"
+#include "mkn/kul/gpu.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
@@ -11,15 +11,15 @@ struct S {
 };
 
 __global__ void kernel(S* structs) {
-  auto i = kul::gpu::idx();
+  auto i = mkn::gpu::idx();
   structs[i].f0 = structs[i].d0 + 1;
 }
 
 uint32_t test() {
   std::vector<S> host{NUM};
   for (uint32_t i = 0; i < NUM; ++i) host[i].d0 = i;
-  kul::gpu::DeviceMem<S> dev{host};
-  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(kernel, dev);
+  mkn::gpu::DeviceMem<S> dev{host};
+  mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(kernel, dev);
   for (auto const& s : dev())
     if (s.f0 != s.d0 + 1) return 1;
   return 0;

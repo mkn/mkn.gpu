@@ -2,8 +2,8 @@
 #include <cassert>
 #include <algorithm>
 
-#include "kul/gpu.hpp"
-#include "kul/gpu/asio.hpp"
+#include "mkn/kul/gpu.hpp"
+#include "mkn/kul/gpu/asio.hpp"
 #include "__share__.hpp"
 
 static constexpr std::uint32_t BATCHES = 1;
@@ -16,10 +16,10 @@ struct A {
 };
 
 std::uint32_t test_single() {
-  kul::gpu::HostArray<A, NUM> a;
+  mkn::gpu::HostArray<A, NUM> a;
   for (std::uint32_t i = 0; i < NUM; ++i) a[i].i0 = i;
 
-  auto batch = kul::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
+  auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
       [] __device__(auto i, auto a) {
         assert(i < NUM);
         assert(a != nullptr);
@@ -50,7 +50,7 @@ std::uint32_t _test_multiple(As&& a) {
   std::vector<B> b(NUM / 1000);
   for (std::uint32_t i = 0; i < NUM / 1000; ++i) b[i].f0 = i + 1;
 
-  auto batch = kul::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
+  auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
       [] __device__(auto i, A* a, B* b) { a[i].i0 = a[i].i0 + b[i % 1000].f0; }, a, b);
 
   std::size_t checked = 0;
@@ -66,18 +66,18 @@ std::uint32_t _test_multiple(As&& a) {
 }
 
 std::uint32_t test_multiple() { return _test_multiple(std::vector<A>(NUM)); }
-std::uint32_t test_multiple_pinned() { return _test_multiple(kul::gpu::HostArray<A, NUM>{}); }
+std::uint32_t test_multiple_pinned() { return _test_multiple(mkn::gpu::HostArray<A, NUM>{}); }
 
 template <typename Float = double>
 std::uint32_t dev_class() {
-  kul::gpu::HostArray<Float, NUM> a;
+  mkn::gpu::HostArray<Float, NUM> a;
   for (std::uint32_t i = 0; i < NUM; ++i) a[i] = i;
 
   std::vector<Float> b(NUM);
   for (std::uint32_t i = 0; i < NUM; ++i) b[i] = i + 1;
   DevClass<Float> dev(b);
 
-  auto batch = kul::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
+  auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
       [] __device__(auto i, auto* a, auto* b) { a[i] += (*b)[i]; }, a, dev);
 
   std::size_t checked = 0;

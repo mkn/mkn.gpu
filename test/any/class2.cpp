@@ -1,5 +1,5 @@
 
-#include "kul/gpu.hpp"
+#include "mkn/kul/gpu.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
@@ -11,13 +11,13 @@ struct A {
 };
 
 template <typename Float>
-struct HostClassA : kul::gpu::HostClass {
+struct HostClassA : mkn::gpu::HostClass {
   template <typename T>
   HostClassA(T t) : data{t} {}
 
-  auto operator()() { return kul::gpu::HostClass::alloc<A<Float>>(data); }
+  auto operator()() { return mkn::gpu::HostClass::alloc<A<Float>>(data); }
 
-  kul::gpu::DeviceMem<Float> data;
+  mkn::gpu::DeviceMem<Float> data;
 };
 
 template <typename Float>
@@ -26,18 +26,18 @@ struct B {
 };
 
 template <typename Float>
-struct HostClassB : kul::gpu::HostClass {
+struct HostClassB : mkn::gpu::HostClass {
   template <typename T>
   HostClassB(T t0, T t1) : data0{t0}, data1{t1} {}
 
-  auto operator()() { return kul::gpu::HostClass::alloc<B<Float>>(data0, data1); }
+  auto operator()() { return mkn::gpu::HostClass::alloc<B<Float>>(data0, data1); }
 
-  kul::gpu::DeviceMem<Float> data0, data1;
+  mkn::gpu::DeviceMem<Float> data0, data1;
 };
 
 template <typename T>
 __global__ void vectoradd(A<T>* a, B<T> const* b) {
-  auto i = kul::gpu::idx();
+  auto i = mkn::gpu::idx();
   a->data[i] = b->data0[i] + b->data1[i];
 }
 
@@ -48,7 +48,7 @@ uint32_t test() {
   for (uint32_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;
   HostClassA<Float> devA(NUM);
   HostClassB<Float> devB{hostB, hostC};
-  kul::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectoradd<Float>,
+  mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectoradd<Float>,
                                                                               devA(), devB());
   auto hostA = devA.data();
   for (uint32_t i = 0; i < NUM; i++)

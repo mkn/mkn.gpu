@@ -1,7 +1,7 @@
 
 template <typename Float, bool GPU = false>
-struct DevClass : kul::gpu::DeviceClass<GPU> {
-  using Super = kul::gpu::DeviceClass<GPU>;
+struct DevClass : mkn::gpu::DeviceClass<GPU> {
+  using Super = mkn::gpu::DeviceClass<GPU>;
   using gpu_t = DevClass<Float, true>;
 
   template <typename T>
