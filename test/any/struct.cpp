@@ -1,5 +1,5 @@
 
-#include "mkn/kul/gpu.hpp"
+#include "mkn/gpu.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;

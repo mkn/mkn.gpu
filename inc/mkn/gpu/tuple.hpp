@@ -31,7 +31,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_TUPLE_HPP_
 #define _MKN_GPU_TUPLE_HPP_
 
-#include "mkn/gpu.hpp"
+//#include "mkn/gpu.hpp"
+#include "mkn/kul/tuple.hpp"
 
 namespace mkn::gpu {
 
@@ -73,7 +74,7 @@ struct ASpanSet<T, SIZE, true> : mkn::gpu::DeviceClass<true> {};
 
 template <typename T, typename SIZE>
 struct ASpanSet<T, SIZE, false> : mkn::gpu::DeviceClass<false> {
-  mkn::SpanSet<T, SIZE> base;
+  mkn::kul::SpanSet<T, SIZE> base;
 };
 
 template <typename T, typename SIZE = size_t, bool GPU = false>
@@ -107,7 +108,7 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
   }
 
   template <bool gpu = GPU, std::enable_if_t<!gpu, bool> = 0>
-  mkn::SpanSet<T, SIZE>& take() {
+  auto& take() {
     Super::base.vec = std::move(vec.take());
     return Super::base;
   }

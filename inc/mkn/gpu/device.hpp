@@ -48,10 +48,10 @@ struct DeviceMem {
 
   DeviceMem(T const* t, std::size_t _s) : DeviceMem{_s} { send(t, _s); }
 
-  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   DeviceMem(C const& c) : DeviceMem{c.data(), c.size()} {}
 
-  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   DeviceMem(C&& c) : DeviceMem{c.data(), c.size()} {}
 
   ~DeviceMem() {
@@ -62,7 +62,7 @@ struct DeviceMem {
     MKN_GPU_NS::send(p, t, _size, start);
   }
 
-  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   void send(C const& c, std::size_t start = 0) {
     send(c.data(), c.size(), start);
   }
@@ -83,13 +83,13 @@ struct DeviceMem {
   void take(T* to, std::size_t size) { MKN_GPU_NS::take(p, to, size); }
   void take(T* to) { MKN_GPU_NS::take(p, to, s); }
 
-  template <typename C, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
+  template <typename C, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   C& take(C& c) {
     take(c.data(), c.size());
     return c;
   }
 
-  template <typename C = std::vector<T>, std::enable_if_t<mkn::is_span_like_v<C>, bool> = 0>
+  template <typename C = std::vector<T>, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   C take() {
     C c(s);
     return take(c);
@@ -167,7 +167,7 @@ struct ADeviceClass<false> {
 
   template <typename as, typename... DevMems>
   auto alloc(DevMems&... mem) {
-    auto ptrs = make_pointer_container(mem.p...);
+    auto ptrs = kul::make_pointer_container(mem.p...);
     static_assert(sizeof(as) == sizeof(ptrs), "Class cast type size mismatch");
     _alloc(&ptrs, sizeof(ptrs));
     return static_cast<as*>(ptr);
@@ -254,7 +254,7 @@ struct HostMem {
     std::copy(data, data + _size, p);
   }
 
-  template <template <typename> typename C, std::enable_if_t<mkn::is_span_like_v<C<T>>, bool> = 0>
+  template <template <typename> typename C, std::enable_if_t<mkn::kul::is_span_like_v<C<T>>, bool> = 0>
   HostMem(C<T> const& c) : HostMem{c.data(), c.size()} {}
 
   ~HostMem() {
@@ -333,7 +333,7 @@ auto handle_input(T0& t) {
     return std::ref(t);
   } else if constexpr (std::is_base_of_v<DeviceClass<false>, T>) {
     return std::ref(t);
-  } else if constexpr (mkn::is_span_like_v<T>) {
+  } else if constexpr (mkn::kul::is_span_like_v<T>) {
     return std::make_shared<DeviceMem<typename T::value_type>>(t);
   } else {
     return std::make_shared<DeviceMem<T>>(&t, 1);

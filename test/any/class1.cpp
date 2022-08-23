@@ -1,5 +1,5 @@
 
-#include "mkn/kul/gpu.hpp"
+#include "mkn/gpu.hpp"
 #include "__share__.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;

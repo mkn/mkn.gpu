@@ -1,5 +1,5 @@
-#define KUL_GPU_FN_PER_NS 1
-#include "mkn/kul/gpu/cuda.hpp"
+#define MKN_GPU_FN_PER_NS 1
+#include "mkn/gpu/cuda.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
