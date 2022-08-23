@@ -34,10 +34,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <cuda_runtime.h>
 
-#include "mkn/log.hpp"
-#include "mkn/span.hpp"
-#include "mkn/tuple.hpp"
-#include "mkn/assert.hpp"
+#include "mkn/kul/log.hpp"
+#include "mkn/kul/span.hpp"
+#include "mkn/kul/tuple.hpp"
+#include "mkn/kul/assert.hpp"
 
 #include "mkn/gpu/def.hpp"
 
@@ -118,7 +118,7 @@ void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0)
 
 template <typename T, typename Span>
 void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
-  static_assert(mkn::is_span_like_v<Span>);
+  static_assert(mkn::kul::is_span_like_v<Span>);
   MKN_GPU_ASSERT(cudaMemcpyAsync(span.data(),              //
                                  p + start,                //
                                  span.size() * sizeof(T),  //

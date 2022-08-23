@@ -1,5 +1,5 @@
 
-#include "mkn/kul/gpu.hpp"
+#include "mkn/gpu.hpp"
 
 int main() {
   KOUT(NON) << __FILE__;

@@ -2,8 +2,8 @@
 #include <cassert>
 #include <algorithm>
 
-#include "mkn/kul/gpu.hpp"
-#include "mkn/kul/gpu/asio.hpp"
+#include "mkn/gpu.hpp"
+#include "mkn/gpu/asio.hpp"
 #include "__share__.hpp"
 
 static constexpr std::uint32_t BATCHES = 1;

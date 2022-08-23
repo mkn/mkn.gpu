@@ -64,7 +64,7 @@ struct Batch {
         streams{n_batches},
         _asio{pinned.size()},
         sync_{BatchTuple::type(args...)} {
-    static_assert(mkn::is_span_like_v<ASYNC_t>);
+    static_assert(mkn::kul::is_span_like_v<ASYNC_t>);
     assert(pinned.size() > 0);
     assert(_asio.s > 0);
     assert(_asio.p != nullptr);
