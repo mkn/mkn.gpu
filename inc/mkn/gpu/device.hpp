@@ -254,7 +254,8 @@ struct HostMem {
     std::copy(data, data + _size, p);
   }
 
-  template <template <typename> typename C, std::enable_if_t<mkn::kul::is_span_like_v<C<T>>, bool> = 0>
+  template <template <typename> typename C,
+            std::enable_if_t<mkn::kul::is_span_like_v<C<T>>, bool> = 0>
   HostMem(C<T> const& c) : HostMem{c.data(), c.size()} {}
 
   ~HostMem() {

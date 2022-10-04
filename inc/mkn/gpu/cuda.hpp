@@ -80,6 +80,12 @@ void alloc_host(T*& p, Size size) {
   MKN_GPU_ASSERT(cudaMallocHost((void**)&p, size * sizeof(T)));
 }
 
+template <typename T, typename Size>
+void alloc_managed(T*& p, Size size) {
+  KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
+  MKN_GPU_ASSERT(cudaMallocManaged((void**)&p, size * sizeof(T)));
+}
+
 void destroy(void* p) { MKN_GPU_ASSERT(cudaFree(p)); }
 
 template <typename T>
@@ -169,6 +175,45 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " warpSize       " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
+
+template <typename T, std::int32_t alignment = 32>
+class ManagedAllocator {
+  using This = ManagedAllocator<T, alignment>;
+
+ public:
+  using pointer = T*;
+  using reference = T&;
+  using value_type = T;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+
+  template <typename U>
+  struct rebind {
+    using other = ManagedAllocator<U, alignment>;
+  };
+
+  T* allocate(std::size_t const n) const {
+    if (n == 0) return nullptr;
+
+    T* ptr;
+    alloc_managed(ptr, n);
+    if (!ptr) throw std::bad_alloc();
+    return ptr;
+  }
+
+  void deallocate(T* const p) noexcept {
+    if (p) destroy(p);
+  }
+  void deallocate(T* const p, std::size_t /*n*/) noexcept {  // needed from std::
+    deallocate(p);
+  }
+
+  bool operator!=(This const& that) const { return !(*this == that); }
+
+  bool operator==(This const& /*that*/) const {
+    return true;  // stateless
+  }
+};
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 } /* namespace cuda */
