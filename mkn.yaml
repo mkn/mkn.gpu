@@ -21,8 +21,14 @@ profile:
         test/cuda/(\w).cpp
 
 
+# if you have no GPU but want to test your code
+- name: pseudo_gpu
+  parent: headers
+  arg: -DMKN_GPU_CPU
+  test: test/any/(\w).cpp
+
+
 - name: format
   mod: |
     clang.format{init{style: file, paths: inc}}
-
 

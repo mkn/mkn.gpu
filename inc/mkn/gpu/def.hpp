@@ -9,15 +9,26 @@
 #include "mkn/gpu/rocm/def.hpp"
 #elif defined(MKN_GPU_CUDA)
 #include "mkn/gpu/cuda/def.hpp"
+#elif defined(MKN_GPU_CPU)
+
 #elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
 #error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 
 namespace mkn::gpu {
 
+#if defined(MKN_GPU_CPU)
+
+template <typename T>
+static constexpr bool is_floating_point_v = std::is_floating_point_v<T>;
+
+#else
+
 template <typename T>
 static constexpr bool is_floating_point_v =
     std::is_floating_point_v<T> or std::is_same_v<_Float16, T>;
+
+#endif
 
 } /* namespace mkn::gpu */
 
