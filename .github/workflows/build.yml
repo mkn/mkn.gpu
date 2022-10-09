@@ -1,0 +1,19 @@
+name: ubuntu-latest
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: test
+      run: |
+        wget https://github.com/mkn/mkn/releases/download/latest/mkn_nix
+        chmod +x mkn_nix
+        KLOG=3 ./mkn_nix clean build run -dtKOp pseudo_gpu -a "-std=c++17" -g 0 test

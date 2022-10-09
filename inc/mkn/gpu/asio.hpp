@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if defined(MKN_GPU_ROCM)
 #elif defined(MKN_GPU_CUDA)
+#elif defined(MKN_GPU_CPU)
 #elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
 #error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
@@ -173,10 +174,7 @@ class Launcher {
  protected:
   template <typename F, typename... Args>
   __global__ static void kernel(F&& f, int max, int batch_index, Args... args) {
-    auto bi = mkn::gpu::idx();
-    if (bi < max) {
-      f(bi + (max * batch_index), args...);
-    }
+    if (auto bi = mkn::gpu::idx(); bi < max) f(bi + (max * batch_index), args...);
   }
 
   template <std::size_t... I, typename... Args>
