@@ -36,6 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
+#include "mkn/kul/threads.hpp"
 
 #include "mkn/gpu/def.hpp"
 
@@ -45,10 +46,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef __device__
 #define __device__
-#endif  //__device__
+#endif  // __device__
 #ifndef __host__
 #define __host__
-#endif  // host
+#endif  // __host__
 #ifndef __global__
 #define __global__
 #endif  // __global__
@@ -152,7 +153,7 @@ void sync() {}
 #include "mkn/gpu/device.hpp"
 
 namespace detail {
-static std::size_t idx = 0;
+static thread_local std::size_t idx = 0;
 }
 
 template <typename F, typename... Args>
@@ -186,6 +187,14 @@ struct Launcher {
   std::size_t s = 0;
 };
 
+struct GLauncher : public Launcher {
+  GLauncher(std::size_t s, [[maybe_unused]] size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+    b.x = 1024;
+    g.x = s / b.x;
+    if ((s % b.x) > 0) ++g.x;
+  }
+};
+
 void prinfo(std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
@@ -196,7 +205,7 @@ void prinfo(std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 namespace mkn::gpu::cpu {
 
 template <typename SIZE = std::uint32_t /*max 4294967296*/>
-__device__ SIZE idx() {
+SIZE idx() {
   return MKN_GPU_NS::detail::idx++;
 }
 

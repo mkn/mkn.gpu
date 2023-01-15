@@ -14,6 +14,6 @@ jobs:
 
     - name: test
       run: |
-        wget https://github.com/mkn/mkn/releases/download/latest/mkn_nix
-        chmod +x mkn_nix
-        KLOG=3 ./mkn_nix clean build run -dtKOp pseudo_gpu -a "-std=c++17" -g 0 test
+        curl -Lo mkn https://github.com/mkn/mkn/releases/download/latest/mkn_nix
+        chmod +x mkn
+        KLOG=3 ./mkn clean build run -dtKOp pseudo_gpu -a "-std=c++17" -g 0 test

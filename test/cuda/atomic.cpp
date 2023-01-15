@@ -39,5 +39,5 @@ uint32_t test() {
 
 int main() {
   KOUT(NON) << __FILE__;
-  return 0; //test<float>() + test<double>();
+  return 0;  // test<float>() + test<double>();
 }
