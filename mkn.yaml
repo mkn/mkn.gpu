@@ -30,5 +30,5 @@ profile:
 
 - name: format
   mod: |
-    clang.format{init{style: file, paths: inc}}
+    clang.format{init{style: file, paths: inc test}}
 

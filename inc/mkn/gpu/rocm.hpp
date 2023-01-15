@@ -132,10 +132,12 @@ void sync() { MKN_GPU_ASSERT(hipDeviceSynchronize()); }
 
 template <typename F, typename... Args>
 void launch(F f, dim3 g, dim3 b, std::size_t ds, hipStream_t& s, Args&&... args) {
-  KLOG(TRC);
+  std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
+  KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
+  sync();
 }
 
 // https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
@@ -154,6 +156,18 @@ struct Launcher {
   size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
   hipStream_t s = 0;
+};
+
+struct GLauncher : public Launcher {
+  GLauncher(std::size_t s, size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+    [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
+
+    b.x = devProp.maxThreadsPerBlock;
+    g.x = s / b.x;
+    if ((s % b.x) > 0) ++g.x;
+  }
+
+  hipDeviceProp_t devProp;
 };
 
 // https://rocm-developer-tools.github.io/HIP/group__Device.html

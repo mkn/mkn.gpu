@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_CUDA_HPP_
 #define _MKN_GPU_CUDA_HPP_
 
+#include <vector>
+
 #include <cuda_runtime.h>
 
 #include "mkn/kul/log.hpp"
@@ -41,7 +43,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mkn/gpu/def.hpp"
 
-#define MKN_GPU_ASSERT(x) (KASSERT((x) == cudaSuccess))
+// #define MKN_GPU_ASSERT(x) (KASSERT((x) == cudaSuccess))
+
+#define MKN_GPU_ASSERT(ans) \
+  { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true) {
+  if (code != cudaSuccess) {
+    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+    if (abort) exit(code);
+  }
+}
 
 namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
@@ -61,6 +72,21 @@ struct Stream {
 
   cudaError_t result;
   cudaStream_t stream;
+};
+
+template <typename T>
+struct Pointer {
+  Pointer(T* _t) : t{_t} { MKN_GPU_ASSERT(cudaPointerGetAttributes(&attributes, t)); }
+
+  bool is_unregistered_ptr() const { return attributes.type == 0; }
+  bool is_host_ptr() const {
+    return attributes.type == 1 || (is_unregistered_ptr() && t != nullptr);
+  }
+  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == 2; }
+  bool is_managed_ptr() const { return attributes.type == 3; }
+
+  T* t;
+  cudaPointerAttributes attributes;
 };
 
 template <typename Size>
@@ -109,8 +135,23 @@ void send(T* p, T const* t, Size size = 1, Size start = 0) {
 }
 
 template <typename T, typename Size>
-void take(T* p, T* t, Size size = 1, Size start = 0) {
+void take(T const* p, T* t, Size size = 1, Size start = 0) {
   MKN_GPU_ASSERT(cudaMemcpy(t, p + start, size * sizeof(T), cudaMemcpyDeviceToHost));
+}
+
+template <typename T, typename Size>
+void copy(T* dst, T const* src, Size size = 1, Size start = 0) {
+  Pointer p{dst};
+  if (p.is_host_ptr())
+    take(src, dst, size, start);
+  else
+    send(dst, src, size, start);
+}
+
+template <typename Type, typename Alloc0, typename Alloc1>
+void copy(std::vector<Type, Alloc0>& dst, std::vector<Type, Alloc1> const& src) {
+  assert(dst.size() >= src.size());
+  copy(dst.data(), src.data(), dst.size());
 }
 
 template <typename T, typename Size>
@@ -138,10 +179,12 @@ void sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
 
 template <typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... args) {
-  KLOG(TRC);
+  std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
+  KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) { f<<<g, b, ds, s>>>(params...); },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
+  sync();
 }
 
 //
@@ -161,6 +204,33 @@ struct Launcher {
   dim3 g /*gridDim*/, b /*blockDim*/;
   cudaStream_t s = 0;
 };
+
+struct GLauncher : public Launcher {
+  GLauncher(std::size_t s, size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+    [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
+
+    b.x = devProp.maxThreadsPerBlock;
+    g.x = s / b.x;
+    if ((s % b.x) > 0) ++g.x;
+  }
+
+  cudaDeviceProp devProp;
+};
+
+template <typename T, typename V>
+__global__ void _vector_fill(T* a, V t, std::size_t s) {
+  if (auto i = mkn::gpu::cuda::idx(); i < s) a[i] = t;
+}
+
+template <typename Container, typename T>
+void fill(Container& c, size_t size, T val) {
+  GLauncher{c.size()}(_vector_fill<typename Container::value_type, T>, c.data(), val, size);
+}
+
+template <typename Container, typename T>
+void fill(Container& c, T val) {
+  GLauncher{c.size()}(_vector_fill<typename Container::value_type, T>, c.data(), val, c.size());
+}
 
 //
 void prinfo(size_t dev = 0) {
