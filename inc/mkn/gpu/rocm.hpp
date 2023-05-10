@@ -41,7 +41,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mkn/gpu/def.hpp"
 
-#define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
+// #define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
+
+#define MKN_GPU_ASSERT(ans) \
+  { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
+  if (code != hipSuccess) {
+    fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
+    if (abort) exit(code);
+  }
+}
 
 namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
@@ -65,6 +74,7 @@ struct Stream {
 
 template <typename Size>
 void alloc(void*& p, Size size) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipMalloc((void**)&p, size));
 }
 
@@ -80,35 +90,44 @@ void alloc_host(T*& p, Size size) {
   MKN_GPU_ASSERT(hipHostMalloc((void**)&p, size * sizeof(T)));
 }
 
-void destroy(void* p) { MKN_GPU_ASSERT(hipFree(p)); }
+void destroy(void* p) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(hipFree(p));
+}
 
 template <typename T>
 void destroy(T* ptr) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipFree(ptr));
 }
 
 template <typename T>
 void destroy_host(T* ptr) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipHostFree(ptr));
 }
 
 template <typename Size>
 void send(void* p, void* t, Size size = 1) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipMemcpy(p, t, size, hipMemcpyHostToDevice));
 }
 
 template <typename T, typename Size>
 void send(T* p, T const* t, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
 }
 
 template <typename T, typename Size>
-void take(T* p, T* t, Size size = 1, Size start = 0) {
-  MKN_GPU_ASSERT(hipMemcpy(p + start, t, size * sizeof(T), hipMemcpyHostToDevice));
+void take(T const* p, T* t, Size size = 1, Size start = 0) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(hipMemcpy(t, p + start, size * sizeof(T), hipMemcpyDeviceToHost));
 }
 
 template <typename T, typename Size>
 void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(hipMemcpyAsync(p + start,              //
                                 t + start,              //
                                 size * sizeof(T),       //
@@ -118,6 +137,7 @@ void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0)
 
 template <typename T, typename Span>
 void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
+  KLOG(TRC);
   static_assert(mkn::kul::is_span_like_v<Span>);
   MKN_GPU_ASSERT(hipMemcpyAsync(span.data(),              //
                                 p + start,                //

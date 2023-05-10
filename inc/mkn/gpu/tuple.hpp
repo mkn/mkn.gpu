@@ -31,7 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_TUPLE_HPP_
 #define _MKN_GPU_TUPLE_HPP_
 
-//#include "mkn/gpu.hpp"
+// #include "mkn/gpu.hpp"
 #include "mkn/kul/tuple.hpp"
 
 namespace mkn::gpu {
