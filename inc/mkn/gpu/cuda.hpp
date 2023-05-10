@@ -112,35 +112,44 @@ void alloc_managed(T*& p, Size size) {
   MKN_GPU_ASSERT(cudaMallocManaged((void**)&p, size * sizeof(T)));
 }
 
-void destroy(void* p) { MKN_GPU_ASSERT(cudaFree(p)); }
+void destroy(void* p) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(cudaFree(p));
+}
 
 template <typename T>
 void destroy(T*& ptr) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaFree(ptr));
 }
 
 template <typename T>
 void destroy_host(T*& ptr) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaFreeHost(ptr));
 }
 
 template <typename Size>
 void send(void* p, void* t, Size size = 1) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpy(p, t, size, cudaMemcpyHostToDevice));
 }
 
 template <typename T, typename Size>
 void send(T* p, T const* t, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpy(p + start, t, size * sizeof(T), cudaMemcpyHostToDevice));
 }
 
 template <typename T, typename Size>
 void take(T const* p, T* t, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpy(t, p + start, size * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
 template <typename T, typename Size>
 void copy(T* dst, T const* src, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   Pointer p{dst};
   if (p.is_host_ptr())
     take(src, dst, size, start);
@@ -150,12 +159,14 @@ void copy(T* dst, T const* src, Size size = 1, Size start = 0) {
 
 template <typename Type, typename Alloc0, typename Alloc1>
 void copy(std::vector<Type, Alloc0>& dst, std::vector<Type, Alloc1> const& src) {
+  KLOG(TRC);
   assert(dst.size() >= src.size());
   copy(dst.data(), src.data(), dst.size());
 }
 
 template <typename T, typename Size>
 void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0) {
+  KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpyAsync(p + start,               //
                                  t + start,               //
                                  size * sizeof(T),        //
@@ -165,6 +176,7 @@ void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0)
 
 template <typename T, typename Span>
 void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
+  KLOG(TRC);
   static_assert(mkn::kul::is_span_like_v<Span>);
   MKN_GPU_ASSERT(cudaMemcpyAsync(span.data(),              //
                                  p + start,                //

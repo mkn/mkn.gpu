@@ -159,7 +159,7 @@ static thread_local std::size_t idx = 0;
 template <typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, std::size_t stream, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
-
+  KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) {
         for (std::size_t i = 0; i < N; ++i) f(params...);
