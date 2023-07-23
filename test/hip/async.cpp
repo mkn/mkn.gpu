@@ -33,7 +33,7 @@
 
 // Convenience function for checking HIP runtime API results
 // can be wrapped around any runtime API call. No-op in release builds.
-inline void checkHip(hipError_t result) {
+inline void checkHip([[maybe_unused]] hipError_t result) {
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != hipSuccess) {
     fprintf(stderr, "HIP Runtime Error: %s\n", hipGetErrorString(result));

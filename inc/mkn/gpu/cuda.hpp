@@ -187,6 +187,7 @@ void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
 
 void sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
 
+#include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
 template <typename F, typename... Args>
@@ -257,45 +258,6 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " warpSize       " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
-
-template <typename T, std::int32_t alignment = 32>
-class ManagedAllocator {
-  using This = ManagedAllocator<T, alignment>;
-
- public:
-  using pointer = T*;
-  using reference = T&;
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-
-  template <typename U>
-  struct rebind {
-    using other = ManagedAllocator<U, alignment>;
-  };
-
-  T* allocate(std::size_t const n) const {
-    if (n == 0) return nullptr;
-
-    T* ptr;
-    alloc_managed(ptr, n);
-    if (!ptr) throw std::bad_alloc();
-    return ptr;
-  }
-
-  void deallocate(T* const p) noexcept {
-    if (p) destroy(p);
-  }
-  void deallocate(T* const p, std::size_t /*n*/) noexcept {  // needed from std::
-    deallocate(p);
-  }
-
-  bool operator!=(This const& that) const { return !(*this == that); }
-
-  bool operator==(This const& /*that*/) const {
-    return true;  // stateless
-  }
-};
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 } /* namespace cuda */
