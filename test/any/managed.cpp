@@ -1,0 +1,43 @@
+
+#include "mkn/gpu.hpp"
+
+static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
+static constexpr uint32_t NUM = WIDTH * HEIGHT;
+static constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
+
+template <typename T>
+using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;
+
+struct S {
+  float f0 = 1;
+  double d0 = 1;
+};
+
+__global__ void kernel(S* structs) {
+  auto i = mkn::gpu::idx();
+  structs[i].f0 = structs[i].d0 + 1;
+}
+
+template <typename L>
+std::uint32_t _test(L&& launcher) {
+  ManagedVector<S> mem{NUM};
+  for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
+
+  launcher(kernel, mem);
+
+  for (std::uint32_t i = 0; i < NUM; ++i)
+    if (mem[i].f0 != mem[i].d0 + 1) return 1;
+
+  return 0;
+}
+
+std::uint32_t test() {
+  return _test(mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y});
+}
+
+std::uint32_t test_guess() { return _test(mkn::gpu::GLauncher{NUM}); }
+
+int main() {
+  KOUT(NON) << __FILE__;
+  return test() + test_guess();
+}

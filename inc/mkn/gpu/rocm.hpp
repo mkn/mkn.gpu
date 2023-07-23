@@ -72,6 +72,21 @@ struct Stream {
   hipStream_t stream;
 };
 
+template <typename T>
+struct Pointer {
+  Pointer(T* _t) : t{_t} { MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t)); }
+
+  bool is_unregistered_ptr() const { return attributes.type == 0; }
+  bool is_host_ptr() const {
+    return attributes.type == 1 || (is_unregistered_ptr() && t != nullptr);
+  }
+  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == 2; }
+  bool is_managed_ptr() const { return attributes.type == 3; }
+
+  T* t;
+  hipPointerAttribute_t attributes;
+};
+
 template <typename Size>
 void alloc(void*& p, Size size) {
   KLOG(TRC);
@@ -88,6 +103,12 @@ template <typename T, typename Size>
 void alloc_host(T*& p, Size size) {
   KLOG(TRC) << "CPU alloced: " << size * sizeof(T);
   MKN_GPU_ASSERT(hipHostMalloc((void**)&p, size * sizeof(T)));
+}
+
+template <typename T, typename Size>
+void alloc_managed(T*& p, Size size) {
+  KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
+  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, size * sizeof(T)));
 }
 
 void destroy(void* p) {
@@ -148,6 +169,7 @@ void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
 
 void sync() { MKN_GPU_ASSERT(hipDeviceSynchronize()); }
 
+#include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
 template <typename F, typename... Args>

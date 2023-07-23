@@ -44,15 +44,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define MKN_GPU_ASSERT(x) (KASSERT((x)))
 
-#ifndef __device__
+#if defined(__device__)
+#pragma message("__device__ already defined")
+#error  // check your compiler
+#endif
+
+#if defined(__host__)
+#pragma message("__host__ already defined")
+#error  // check your compiler
+#endif
+
+#if defined(__global__)
+#pragma message("__global__ already defined")
+#error  // check your compiler
+#endif
+
+// we need to exclude these for CPU only operations
 #define __device__
-#endif  // __device__
-#ifndef __host__
 #define __host__
-#endif  // __host__
-#ifndef __global__
 #define __global__
-#endif  // __global__
 
 namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
@@ -82,20 +92,38 @@ struct Stream {
   std::size_t stream = 0;
 };
 
+template <typename T>
+struct Pointer {
+  Pointer(T* _t) : t{_t} {}
+
+  bool is_unregistered_ptr() const { return t == nullptr; }
+  bool is_host_ptr() const { return true; }
+  bool is_device_ptr() const { return false; }
+  bool is_managed_ptr() const { return false; }
+
+  T* t;
+};
+
 template <typename Size>
 void alloc(void*& p, Size size) {
-  KLOG(TRC) << "GPU alloced: " << size;
+  KLOG(TRC) << "CPU alloced: " << size;
   MKN_GPU_ASSERT(p = std::malloc(size));
 }
 
 template <typename T, typename Size>
 void alloc(T*& p, Size size) {
-  KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
+  KLOG(TRC) << "CPU alloced: " << size * sizeof(T);
   MKN_GPU_ASSERT(p = reinterpret_cast<T*>(std::malloc(size * sizeof(T))));
 }
 
 template <typename T, typename Size>
 void alloc_host(T*& p, Size size) {
+  KLOG(TRC) << "CPU alloced: " << size * sizeof(T);
+  MKN_GPU_ASSERT(p = reinterpret_cast<T*>(std::malloc(size * sizeof(T))));
+}
+
+template <typename T, typename Size>
+void alloc_managed(T*& p, Size size) {
   KLOG(TRC) << "CPU alloced: " << size * sizeof(T);
   MKN_GPU_ASSERT(p = reinterpret_cast<T*>(std::malloc(size * sizeof(T))));
 }
@@ -150,6 +178,7 @@ void take_async(T* p, Span& span, Stream& /*stream*/, std::size_t start) {
 
 void sync() {}
 
+#include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
 namespace detail {
@@ -157,7 +186,7 @@ static thread_local std::size_t idx = 0;
 }
 
 template <typename F, typename... Args>
-void launch(F&& f, dim3 g, dim3 b, std::size_t ds, std::size_t stream, Args&&... args) {
+void launch(F&& f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
@@ -195,7 +224,7 @@ struct GLauncher : public Launcher {
   }
 };
 
-void prinfo(std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
+void prinfo([[maybe_unused]] std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 } /* namespace cuda */

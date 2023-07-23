@@ -133,6 +133,12 @@ struct BatchMaker {
   }
 };
 
+template <typename F, typename... Args>
+__global__ static void global_kernel(F&& f, std::uint32_t max, std::uint32_t batch_index,
+                                     Args... args) {
+  if (auto bi = mkn::gpu::idx(); bi < max) f(bi + (max * batch_index), args...);
+}
+
 class Launcher {
   Launcher(dim3 _g, dim3 _b, std::size_t n_batches_) : n_batches{n_batches_}, g{_g}, b{_b} {}
 
@@ -172,23 +178,20 @@ class Launcher {
   }
 
  protected:
-  template <typename F, typename... Args>
-  __global__ static void kernel(F&& f, int max, int batch_index, Args... args) {
-    if (auto bi = mkn::gpu::idx(); bi < max) f(bi + (max * batch_index), args...);
-  }
-
   template <std::size_t... I, typename... Args>
   auto as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
-    return (std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*){nullptr};
+    using T = std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*;
+    return T{nullptr};
   }
 
   template <typename F, typename... PArgs, typename... Args>
-  void _launch(F&& f, std::tuple<PArgs&...>*, Stream& stream, int max, int offset, Args&&... args) {
-    MKN_GPU_NS::launch(kernel<F&&, PArgs...>, g, b, ds, stream(), f, max, offset, args...);
+  void _launch(F&& f, std::tuple<PArgs&...>*, Stream& stream, std::uint32_t max,
+               std::uint32_t offset, Args&&... args) {
+    MKN_GPU_NS::launch(global_kernel<F&&, PArgs...>, g, b, ds, stream(), f, max, offset, args...);
   }
 
   template <typename F, typename... Args>
-  void launch(Stream& stream, F&& f, int max, int offset, Args&&... args) {
+  void launch(Stream& stream, F&& f, std::uint32_t max, std::uint32_t offset, Args&&... args) {
     _launch(f,
             as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
             stream, max, offset, args...);

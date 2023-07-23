@@ -293,6 +293,13 @@ inline constexpr auto is_host_mem_v = is_host_mem<T>::value;
 namespace {
 
 template <typename T>
+struct is_managed_vector : std::false_type {};
+template <typename T>
+struct is_managed_vector<std::vector<T, ManagedAllocator<T>>> : std::true_type {};
+template <typename T>
+inline constexpr auto is_managed_vector_v = is_managed_vector<T>::value;
+
+template <typename T>
 struct is_std_unique_ptr : std::false_type {};
 template <typename T>
 struct is_std_unique_ptr<std::unique_ptr<T>> : std::true_type {};
@@ -349,6 +356,7 @@ auto handle_inputs(std::tuple<Args&...>& tup, std::index_sequence<I...>) {
 template <typename T>
 constexpr bool t_is_lval() {
   if constexpr (is_ref_wrap_v<T>) return (std::is_base_of_v<DeviceClass<false>, typename T::type>);
+  if (is_managed_vector_v<T>) return true;
   return (std::is_base_of_v<DeviceClass<false>, T>);
 }
 
@@ -356,9 +364,12 @@ template <typename T0, std::enable_if_t<t_is_lval<T0>(), int> = 0>
 auto replace(T0& t) {
   using T = std::decay_t<T0>;
   KLOG(TRC) << typeid(t).name();
-  if constexpr (is_ref_wrap_v<T>)
+  if constexpr (is_ref_wrap_v<T>) {
     if constexpr (std::is_base_of_v<DeviceClass<false>, typename T::type>) return t()();
-  if constexpr (std::is_base_of_v<DeviceClass<false>, T>) return t();
+  } else if constexpr (std::is_base_of_v<DeviceClass<false>, T>)
+    return t();
+  else if (is_managed_vector_v<T0>)
+    return t.data();
 }
 
 template <typename T0, std::enable_if_t<!t_is_lval<T0>(), int> = 0>
