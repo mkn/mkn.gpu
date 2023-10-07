@@ -210,7 +210,7 @@ struct Launcher {
 
   template <typename F, typename... Args>
   void operator()(F&& f, Args&&... args) {
-    launch(f, g, b, ds, s, args...);
+    launch(std::forward<F>(f), g, b, ds, s, args...);
   }
 
   size_t ds = 0 /*dynamicShared*/;
@@ -219,7 +219,7 @@ struct Launcher {
 };
 
 struct GLauncher : public Launcher {
-  GLauncher(std::size_t s, size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+  GLauncher(std::size_t s, size_t dev = 0) : Launcher{dim3{}, dim3{}}, count{s} {
     [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
 
     b.x = devProp.maxThreadsPerBlock;
@@ -227,8 +227,16 @@ struct GLauncher : public Launcher {
     if ((s % b.x) > 0) ++g.x;
   }
 
+  std::size_t count = 0;
   cudaDeviceProp devProp;
 };
+
+template <typename F, typename... Args>
+__global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
+  if (auto i = mkn::gpu::cuda::idx(); i < s) f(args...);
+}
+
+#include "launchers.hpp"
 
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {

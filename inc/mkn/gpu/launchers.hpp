@@ -28,62 +28,30 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_ALLOC_HPP_
-#define _MKN_GPU_ALLOC_HPP_
+#ifndef _MKN_GPU_LAUNCHERS_HPP_
+#define _MKN_GPU_LAUNCHERS_HPP_
 
-template <typename T, std::int32_t alignment = 32>
-class ManagedAllocator {
-  using This = ManagedAllocator<T, alignment>;
+struct GDLauncher : public GLauncher {
+  GDLauncher(std::size_t s, size_t dev = 0) : GLauncher{s, dev} {}
 
- public:
-  using pointer = T*;
-  using reference = T&;
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-
-  template <typename U>
-  struct rebind {
-    using other = ManagedAllocator<U, alignment>;
-  };
-
-  T* allocate(std::size_t const n) const {
-    if (n == 0) return nullptr;
-
-    T* ptr;
-    alloc_managed(ptr, n);
-    if (!ptr) throw std::bad_alloc();
-    return ptr;
+  template <typename F, typename... Args>
+  auto operator()(F&& f, Args&&... args) {
+    _launch(std::forward<F>(f),
+            as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
+            count, args...);
   }
 
-  void deallocate(T* const p) noexcept {
-    if (p) destroy(p);
-  }
-  void deallocate(T* const p, std::size_t /*n*/) noexcept {  // needed from std::
-    deallocate(p);
+ protected:
+  template <std::size_t... I, typename... Args>
+  auto as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
+    using T = std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*;
+    return T{nullptr};
   }
 
-  bool operator!=(This const& that) const { return !(*this == that); }
-
-  bool operator==(This const& /*that*/) const {
-    return true;  // stateless
+  template <typename F, typename... PArgs, typename... Args>
+  void _launch(F&& f, std::tuple<PArgs&...>*, Args&&... args) {
+    MKN_GPU_NS::launch(global_gd_kernel<F, PArgs...>, g, b, ds, s, f, args...);
   }
 };
 
-template <typename T, typename Size>
-void copy(T* const dst, T const* const src, Size size) {
-  auto dst_p = Pointer{dst};
-  auto src_p = Pointer{src};
-
-  bool to_send = dst_p.is_device_ptr() && src_p.is_host_ptr();
-  bool to_take = dst_p.is_host_ptr() && src_p.is_device_ptr();
-
-  if (to_send)
-    send(dst, src, size);
-  else if (to_take)
-    take(dst, src, size);
-  else
-    throw std::runtime_error("What are you doing?");
-}
-
-#endif /* _MKN_GPU_ALLOC_HPP_ */
+#endif /* _MKN_GPU_LAUNCHERS_HPP_ */

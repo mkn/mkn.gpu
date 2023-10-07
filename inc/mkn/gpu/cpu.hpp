@@ -217,17 +217,19 @@ struct Launcher {
 };
 
 struct GLauncher : public Launcher {
-  GLauncher(std::size_t s, [[maybe_unused]] size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+  GLauncher(std::size_t s, [[maybe_unused]] size_t dev = 0) : Launcher{dim3{}, dim3{}}, count{s} {
     b.x = 1024;
     g.x = s / b.x;
     if ((s % b.x) > 0) ++g.x;
   }
+
+  std::size_t count;
 };
 
-void prinfo([[maybe_unused]] std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
+void prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-} /* namespace cuda */
+} /* namespace cpu */
 #endif  // MKN_GPU_FN_PER_NS
 } /* namespace mkn::gpu */
 
@@ -239,6 +241,24 @@ SIZE idx() {
 }
 
 }  // namespace mkn::gpu::cpu
+
+namespace mkn::gpu {
+#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
+namespace cpu {
+#define MKN_GPU_NS mkn::gpu::cpu
+#endif  // MKN_GPU_FN_PER_NS
+
+template <typename F, typename... Args>
+static void global_gd_kernel(F f, std::size_t s, Args... args) {
+  if (auto i = mkn::gpu::cpu::idx(); i < s) f(args...);
+}
+
+#include "launchers.hpp"
+
+#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
+} /* namespace cpu */
+#endif  // MKN_GPU_FN_PER_NS
+} /* namespace mkn::gpu */
 
 #undef MKN_GPU_ASSERT
 #endif /* _MKN_PSUEDO_GPU_HPP_ */

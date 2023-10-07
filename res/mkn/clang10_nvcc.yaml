@@ -3,9 +3,9 @@
 #   mkn clean build test -Op cuda -x res/mkn/clang10_nvcc -a --cuda-gpu-arch="sm_61" -l -lcudart
 
 
-local:
-  repo: /mkn/r
-  mod-repo: /mkn/m
+# local:
+#   repo: /mkn/r
+#   mod-repo: /mkn/m
 
 # remote:
 #   repo: git@github.com:mkn/
