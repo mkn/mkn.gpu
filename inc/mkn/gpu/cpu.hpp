@@ -40,6 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mkn/gpu/def.hpp"
 
+#include <cassert>
 #include <cstring>
 
 #define MKN_GPU_ASSERT(x) (KASSERT((x)))
@@ -186,12 +187,15 @@ static thread_local std::size_t idx = 0;
 }
 
 template <typename F, typename... Args>
-void launch(F&& f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
+void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) {
-        for (std::size_t i = 0; i < N; ++i) f(params...);
+        for (std::size_t i = 0; i < N; ++i) {
+            f(params...);
+            detail::idx++;
+        }
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
 
@@ -237,7 +241,7 @@ namespace mkn::gpu::cpu {
 
 template <typename SIZE = std::uint32_t /*max 4294967296*/>
 SIZE idx() {
-  return MKN_GPU_NS::detail::idx++;
+  return MKN_GPU_NS::detail::idx;
 }
 
 }  // namespace mkn::gpu::cpu
@@ -249,7 +253,7 @@ namespace cpu {
 #endif  // MKN_GPU_FN_PER_NS
 
 template <typename F, typename... Args>
-static void global_gd_kernel(F f, std::size_t s, Args... args) {
+static void global_gd_kernel(F& f, std::size_t s, Args... args) {
   if (auto i = mkn::gpu::cpu::idx(); i < s) f(args...);
 }
 

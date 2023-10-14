@@ -50,7 +50,7 @@ struct GDLauncher : public GLauncher {
 
   template <typename F, typename... PArgs, typename... Args>
   void _launch(F&& f, std::tuple<PArgs&...>*, Args&&... args) {
-    MKN_GPU_NS::launch(global_gd_kernel<F, PArgs...>, g, b, ds, s, f, args...);
+    MKN_GPU_NS::launch(&global_gd_kernel<F, PArgs...>, g, b, ds, s, f, args...);
   }
 };
 

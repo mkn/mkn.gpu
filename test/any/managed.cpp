@@ -37,7 +37,31 @@ std::uint32_t test() {
 
 std::uint32_t test_guess() { return _test(mkn::gpu::GLauncher{NUM}); }
 
+template <typename L>
+std::uint32_t _test_lambda_copy_capture_views(L&& launcher) {
+  ManagedVector<S> mem{NUM};
+  for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
+
+  auto* view = mem.data();
+  launcher(__device__[=](){
+      auto i = mkn::gpu::idx();
+      view[i].f0 = view[i].d0 + 1;
+  });
+
+  for (std::uint32_t i = 0; i < NUM; ++i)
+    if (view[i].f0 != view[i].d0 + 1)
+      return 1;
+
+  return 0;
+}
+
+std::uint32_t test_lambda_copy_capture_views() {
+  return _test_lambda_copy_capture_views(mkn::gpu::GDLauncher{NUM});
+}
+
 int main() {
   KOUT(NON) << __FILE__;
-  return test() + test_guess();
+  return test() + //
+         test_guess() + //
+         test_lambda_copy_capture_views();
 }
