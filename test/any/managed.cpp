@@ -43,14 +43,13 @@ std::uint32_t _test_lambda_copy_capture_views(L&& launcher) {
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
   auto* view = mem.data();
-  launcher([=]__device__(){
-      auto i = mkn::gpu::idx();
-      view[i].f0 = view[i].d0 + 1;
+  launcher([=] __device__() {
+    auto i = mkn::gpu::idx();
+    view[i].f0 = view[i].d0 + 1;
   });
 
   for (std::uint32_t i = 0; i < NUM; ++i)
-    if (view[i].f0 != view[i].d0 + 1)
-      return 1;
+    if (view[i].f0 != view[i].d0 + 1) return 1;
 
   return 0;
 }
@@ -61,7 +60,7 @@ std::uint32_t test_lambda_copy_capture_views() {
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test() + //
-         test_guess() + //
+  return test() +        //
+         test_guess() +  //
          test_lambda_copy_capture_views();
 }

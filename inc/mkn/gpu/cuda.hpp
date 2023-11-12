@@ -54,13 +54,13 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
   }
 }
 
-namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-namespace cuda {
 #define MKN_GPU_NS mkn::gpu::cuda
 #else
 #define MKN_GPU_NS mkn::gpu
 #endif  // MKN_GPU_FN_PER_NS
+
+namespace MKN_GPU_NS {
 
 struct Stream {
   Stream() { MKN_GPU_ASSERT(result = cudaStreamCreate(&stream)); }
@@ -267,10 +267,7 @@ void prinfo(size_t dev = 0) {
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
 
-#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-} /* namespace cuda */
-#endif  // MKN_GPU_FN_PER_NS
-} /* namespace mkn::gpu */
+}  // namespace MKN_GPU_NS
 
 #undef MKN_GPU_ASSERT
 #endif /* _MKN_GPU_CUDA_HPP_ */

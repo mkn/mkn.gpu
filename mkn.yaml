@@ -25,6 +25,7 @@ profile:
   parent: headers
   arg: -DMKN_GPU_CPU
   test: test/any/(\w).cpp
+        test/cpu/(\w).cpp
 
 - name: format
   mod: |

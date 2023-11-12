@@ -65,13 +65,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define __host__
 #define __global__
 
-namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-namespace cpu {
 #define MKN_GPU_NS mkn::gpu::cpu
 #else
 #define MKN_GPU_NS mkn::gpu
 #endif  // MKN_GPU_FN_PER_NS
+
+namespace MKN_GPU_NS {
 
 struct dim3 {
   dim3() {}
@@ -193,8 +193,8 @@ void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Arg
   std::apply(
       [&](auto&&... params) {
         for (std::size_t i = 0; i < N; ++i) {
-            f(params...);
-            detail::idx++;
+          f(params...);
+          detail::idx++;
         }
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
@@ -232,10 +232,7 @@ struct GLauncher : public Launcher {
 
 void prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
-#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-} /* namespace cpu */
-#endif  // MKN_GPU_FN_PER_NS
-} /* namespace mkn::gpu */
+}  // namespace MKN_GPU_NS
 
 namespace mkn::gpu::cpu {
 
@@ -246,11 +243,7 @@ SIZE idx() {
 
 }  // namespace mkn::gpu::cpu
 
-namespace mkn::gpu {
-#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-namespace cpu {
-#define MKN_GPU_NS mkn::gpu::cpu
-#endif  // MKN_GPU_FN_PER_NS
+namespace MKN_GPU_NS {
 
 template <typename F, typename... Args>
 static void global_gd_kernel(F& f, std::size_t s, Args... args) {
@@ -259,10 +252,7 @@ static void global_gd_kernel(F& f, std::size_t s, Args... args) {
 
 #include "launchers.hpp"
 
-#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-} /* namespace cpu */
-#endif  // MKN_GPU_FN_PER_NS
-} /* namespace mkn::gpu */
+} /* namespace MKN_GPU_NS */
 
 #undef MKN_GPU_ASSERT
 #endif /* _MKN_PSUEDO_GPU_HPP_ */

@@ -83,7 +83,7 @@ void copy(T* const dst, T const* const src, Size size) {
   else if (to_take)
     take(dst, src, size);
   else
-    throw std::runtime_error("What are you doing?");
+    throw std::runtime_error("Unsupported operation (PR welcome)");
 }
 
 #endif /* _MKN_GPU_ALLOC_HPP_ */

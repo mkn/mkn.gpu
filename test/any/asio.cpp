@@ -6,7 +6,7 @@
 #include "mkn/gpu/asio.hpp"
 #include "__share__.hpp"
 
-#if defined (MKN_GPU_CPU)
+#if defined(MKN_GPU_CPU)
 static constexpr std::uint32_t BATCHES = 1;
 #else
 static constexpr std::uint32_t BATCHES = 2;
@@ -94,7 +94,6 @@ std::uint32_t test_lambda_copy_capture_views() {
 
   return checked != NUM;
 }
-
 
 template <typename Float = double>
 std::uint32_t dev_class() {
