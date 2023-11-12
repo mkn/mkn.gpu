@@ -1,8 +1,8 @@
+## Recommended settings commented out.
 
-
-local:
-  repo: /mkn/r
-  mod-repo: /mkn/m
+# local:
+#   repo: /mkn/r
+#   mod-repo: /mkn/m
 
 # remote:
 #   repo: git@github.com:mkn/
@@ -13,15 +13,9 @@ compiler:
     g++: hipcc
 
 env:
- - name: PATH
-   mode: prepend
-   value: /opt/rocm/bin
+ PATH=/opt/rocm/bin:${PATH}
 
 file:
-  - type: c:S
-    archiver: ar -cr
-    compiler: hipcc
-    linker: hipcc
   - type: cpp:cxx:cc
     archiver: ar -cr
     compiler: hipcc -std=c++17 -fPIC

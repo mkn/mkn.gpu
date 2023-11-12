@@ -40,6 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mkn/gpu/def.hpp"
 
+#include <cassert>
 #include <cstring>
 
 #define MKN_GPU_ASSERT(x) (KASSERT((x)))
@@ -64,13 +65,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define __host__
 #define __global__
 
-namespace mkn::gpu {
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-namespace cpu {
 #define MKN_GPU_NS mkn::gpu::cpu
 #else
 #define MKN_GPU_NS mkn::gpu
 #endif  // MKN_GPU_FN_PER_NS
+
+namespace MKN_GPU_NS {
 
 struct dim3 {
   dim3() {}
@@ -186,12 +187,15 @@ static thread_local std::size_t idx = 0;
 }
 
 template <typename F, typename... Args>
-void launch(F&& f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
+void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) {
-        for (std::size_t i = 0; i < N; ++i) f(params...);
+        for (std::size_t i = 0; i < N; ++i) {
+          f(params...);
+          detail::idx++;
+        }
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
 
@@ -217,28 +221,38 @@ struct Launcher {
 };
 
 struct GLauncher : public Launcher {
-  GLauncher(std::size_t s, [[maybe_unused]] size_t dev = 0) : Launcher{dim3{}, dim3{}} {
+  GLauncher(std::size_t s, [[maybe_unused]] size_t dev = 0) : Launcher{dim3{}, dim3{}}, count{s} {
     b.x = 1024;
     g.x = s / b.x;
     if ((s % b.x) > 0) ++g.x;
   }
+
+  std::size_t count;
 };
 
-void prinfo([[maybe_unused]] std::size_t dev = 0) { KOUT(NON) << "Psuedo GPU in use"; }
+void prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
-#if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
-} /* namespace cuda */
-#endif  // MKN_GPU_FN_PER_NS
-} /* namespace mkn::gpu */
+}  // namespace MKN_GPU_NS
 
 namespace mkn::gpu::cpu {
 
 template <typename SIZE = std::uint32_t /*max 4294967296*/>
 SIZE idx() {
-  return MKN_GPU_NS::detail::idx++;
+  return MKN_GPU_NS::detail::idx;
 }
 
 }  // namespace mkn::gpu::cpu
+
+namespace MKN_GPU_NS {
+
+template <typename F, typename... Args>
+static void global_gd_kernel(F& f, std::size_t s, Args... args) {
+  if (auto i = mkn::gpu::cpu::idx(); i < s) f(args...);
+}
+
+#include "launchers.hpp"
+
+} /* namespace MKN_GPU_NS */
 
 #undef MKN_GPU_ASSERT
 #endif /* _MKN_PSUEDO_GPU_HPP_ */
