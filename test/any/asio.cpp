@@ -92,7 +92,7 @@ std::uint32_t test_lambda_copy_capture_views() {
     }
   }
 
-  return 0;
+  return checked != NUM;
 }
 
 

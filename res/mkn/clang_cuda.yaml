@@ -1,0 +1,28 @@
+#
+# example mkn call using this file
+#   mkn clean build test -Op cuda -x res/mkn/clang10_nvcc -a --cuda-gpu-arch="sm_61" -l -lcudart
+## The following compile flags will likely be required with their specific values for your current hardware
+# --cuda-gpu-arch="sm_61"  # sm_61 = nvidia 1080 (see: http://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards )
+
+property:
+  cxx_flags: --std=c++17 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
+  cxx_cuda: -x cuda --cuda-gpu-arch="sm_61" -Xclang -fcuda-allow-variadic-functions
+  cxx_both: --stdlib=libc++
+
+local:
+  repo: /mkn/r
+  mod-repo: /mkn/m
+
+remote:
+  repo: git@github.com:mkn/
+  mod-repo: git@github.com:mkn-mod/
+
+##example include path for system
+#inc: /usr/local/cuda/targets/x86_64-linux/include
+path: /usr/local/cuda/targets/x86_64-linux/lib
+
+file:
+  - type: cpp:cxx:cc
+    archiver: ar -cr
+    compiler:  clang++ ${cxx_flags} ${cxx_cuda} ${cxx_both}
+    linker:  clang++ -Wl,-z,defs -fuse-ld=gold -lcudart ${cxx_both}

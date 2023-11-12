@@ -43,7 +43,7 @@ std::uint32_t _test_lambda_copy_capture_views(L&& launcher) {
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
   auto* view = mem.data();
-  launcher(__device__[=](){
+  launcher([=]__device__(){
       auto i = mkn::gpu::idx();
       view[i].f0 = view[i].d0 + 1;
   });
