@@ -72,8 +72,10 @@ class ManagedAllocator {
 
 template <typename T, typename Size>
 void copy(T* const dst, T const* const src, Size size) {
-  auto dst_p = Pointer{dst};
-  auto src_p = Pointer{src};
+  assert(dst and src);
+
+  Pointer src_p{src};
+  Pointer dst_p{dst};
 
   bool to_send = dst_p.is_device_ptr() && src_p.is_host_ptr();
   bool to_take = dst_p.is_host_ptr() && src_p.is_device_ptr();
@@ -81,7 +83,7 @@ void copy(T* const dst, T const* const src, Size size) {
   if (to_send)
     send(dst, src, size);
   else if (to_take)
-    take(dst, src, size);
+    take(src, dst, size);
   else
     throw std::runtime_error("Unsupported operation (PR welcome)");
 }

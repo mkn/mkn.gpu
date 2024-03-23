@@ -31,27 +31,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_HPP_
 #define _MKN_GPU_HPP_
 
-#if defined(MKN_GPU_ROCM)
-#include "mkn/gpu/rocm.hpp"
-#elif defined(MKN_GPU_CUDA)
-#include "mkn/gpu/cuda.hpp"
-#elif defined(MKN_GPU_CPU)
-#include "mkn/gpu/cpu.hpp"
-#elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
-#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
-#endif
+#include "mkn/gpu/defines.hpp"
 
 namespace mkn::gpu {
 
 __device__ uint32_t idx() {
-#if defined(MKN_GPU_ROCM)
+#if MKN_GPU_ROCM
   return mkn::gpu::hip::idx();
-#elif defined(MKN_GPU_CUDA)
+
+#elif MKN_GPU_CUDA
   return mkn::gpu::cuda::idx();
-#elif defined(MKN_GPU_CPU)
+
+#elif MKN_GPU_CPU
   return mkn::gpu::cpu::idx();
+
 #else
 #error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
+
 #endif
 }
 

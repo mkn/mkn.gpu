@@ -100,6 +100,9 @@ struct DeviceMem {
 
   auto& size() const { return s; }
 
+  auto* data() { return p; }
+  auto* data() const { return p; }
+
   std::size_t s = 0;
   T* p = nullptr;
   bool owned = false;

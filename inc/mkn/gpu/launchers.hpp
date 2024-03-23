@@ -31,12 +31,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_LAUNCHERS_HPP_
 #define _MKN_GPU_LAUNCHERS_HPP_
 
+template <bool _sync = true>
 struct GDLauncher : public GLauncher {
   GDLauncher(std::size_t s, size_t dev = 0) : GLauncher{s, dev} {}
 
   template <typename F, typename... Args>
   auto operator()(F&& f, Args&&... args) {
-    _launch(std::forward<F>(f),
+    _launch(s, std::forward<F>(f),
+            as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
+            count, args...);
+  }
+
+  template <typename F, typename... Args>
+  auto stream(Stream& s, F&& f, Args&&... args) {
+    _launch(s.stream, std::forward<F>(f),
             as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
             count, args...);
   }
@@ -48,9 +56,9 @@ struct GDLauncher : public GLauncher {
     return T{nullptr};
   }
 
-  template <typename F, typename... PArgs, typename... Args>
-  void _launch(F&& f, std::tuple<PArgs&...>*, Args&&... args) {
-    MKN_GPU_NS::launch(&global_gd_kernel<F, PArgs...>, g, b, ds, s, f, args...);
+  template <typename S, typename F, typename... PArgs, typename... Args>
+  void _launch(S& _s, F&& f, std::tuple<PArgs&...>*, Args&&... args) {
+    MKN_GPU_NS::launch<_sync>(&global_gd_kernel<F, PArgs...>, g, b, ds, _s, f, args...);
   }
 };
 
