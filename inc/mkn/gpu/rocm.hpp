@@ -32,13 +32,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_ROCM_HPP_
 #define _MKN_GPU_ROCM_HPP_
 
-#include "hip/hip_runtime.h"
-
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
 
+#include "hip/hip_runtime.h"
 #include "mkn/gpu/def.hpp"
 
 // #define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
@@ -48,9 +47,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
   if (code != hipSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
+    std::abort();
     if (abort) exit(code);
   }
 }
+
+namespace mkn::gpu::hip {
+
+template <typename SIZE = uint32_t /*max 4294967296*/>
+__device__ SIZE idx() {
+  SIZE width = hipGridDim_x * hipBlockDim_x;
+  SIZE height = hipGridDim_y * hipBlockDim_y;
+
+  SIZE x = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+  SIZE y = hipBlockDim_y * hipBlockIdx_y + hipThreadIdx_y;
+  SIZE z = hipBlockDim_z * hipBlockIdx_z + hipThreadIdx_z;
+  return x + (y * width) + (z * width * height);  // max 4294967296
+}
+
+}  // namespace mkn::gpu::hip
+
+//
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::hip
@@ -72,17 +89,49 @@ struct Stream {
   hipStream_t stream;
 };
 
+struct StreamEvent {
+  StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
+  ~StreamEvent() { /*MKN_GPU_ASSERT(result = hipEventDestroy(event));*/
+  }
+
+  auto& operator()() { return event; };
+  void record() { MKN_GPU_ASSERT(result = hipEventRecord(event, stream())); }
+  bool finished() const { return hipEventQuery(event) == hipSuccess; }
+  void reset() {
+    if (event) MKN_GPU_ASSERT(result = hipEventDestroy(event));
+    MKN_GPU_ASSERT(result = hipEventCreate(&event));
+  }
+
+  Stream& stream;
+  hipError_t result;
+  hipEvent_t event = nullptr;
+};
+
+// https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
 template <typename T>
 struct Pointer {
-  Pointer(T* _t) : t{_t} { MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t)); }
+  Pointer(T* _t) : t{_t} {
+    assert(t);
+    MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t));
+    type = attributes.type;
+  }
 
-  // bool is_unregistered_ptr() const { return attributes.type == 0; }
-  bool is_host_ptr() const { return attributes.hostPointer != nullptr; }
-  bool is_device_ptr() const { return attributes.devicePointer != nullptr; }
-  bool is_managed_ptr() const { return attributes.isManaged; }
+  bool is_unregistered_ptr() const {
+    return attributes.type == hipMemoryType::hipMemoryTypeUnregistered;
+  }
+  bool is_host_ptr() const {
+    return is_unregistered_ptr() || type == hipMemoryType::hipMemoryTypeHost;
+  }
+  bool is_device_ptr() const {
+    return type == hipMemoryType::hipMemoryTypeDevice || attributes.isManaged;
+  }
+  bool is_managed_ptr() const {
+    return attributes.isManaged || type == hipMemoryType::hipMemoryTypeUnified;
+  }
 
   T* t;
   hipPointerAttribute_t attributes;
+  hipMemoryType type = hipMemoryType::hipMemoryTypeUnregistered;
 };
 
 template <typename Size>
@@ -109,7 +158,7 @@ void alloc_managed(T*& p, Size size) {
   MKN_GPU_ASSERT(hipMallocManaged((void**)&p, size * sizeof(T)));
 }
 
-void destroy(void* p) {
+void inline destroy(void* p) {
   KLOG(TRC);
   MKN_GPU_ASSERT(hipFree(p));
 }
@@ -165,19 +214,25 @@ void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
                                 stream()));
 }
 
-void sync() { MKN_GPU_ASSERT(hipDeviceSynchronize()); }
+void inline sync() { MKN_GPU_ASSERT(hipDeviceSynchronize()); }
+void inline sync(hipStream_t stream) { MKN_GPU_ASSERT(hipStreamSynchronize(stream)); }
 
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
-template <typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, hipStream_t& s, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) { hipLaunchKernelGGL(f, g, b, ds, s, params...); },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
-  sync();
+  if constexpr (_sync) {
+    if (s)
+      sync(s);
+    else
+      sync();
+  }
 }
 
 // https://rocm-documentation.readthedocs.io/en/latest/Programming_Guides/HIP-GUIDE.html#calling-global-functions
@@ -234,7 +289,7 @@ void fill(Container& c, T val) {
 }
 
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
-void prinfo(size_t dev = 0) {
+void inline prinfo(size_t dev = 0) {
   hipDeviceProp_t devProp;
   [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;

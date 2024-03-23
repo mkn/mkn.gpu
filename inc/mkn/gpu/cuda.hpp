@@ -34,13 +34,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 
-#include <cuda_runtime.h>
-
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
 
+#include <cuda_runtime.h>
 #include "mkn/gpu/def.hpp"
 
 // #define MKN_GPU_ASSERT(x) (KASSERT((x) == cudaSuccess))
@@ -53,6 +52,22 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
     if (abort) exit(code);
   }
 }
+
+namespace mkn::gpu::cuda {
+
+template <typename SIZE = std::uint32_t /*max 4294967296*/>
+__device__ SIZE idx() {
+  SIZE width = gridDim.x * blockDim.x;
+  SIZE height = gridDim.y * blockDim.y;
+  SIZE x = blockDim.x * blockIdx.x + threadIdx.x;
+  SIZE y = blockDim.y * blockIdx.y + threadIdx.y;
+  SIZE z = blockDim.z * blockIdx.z + threadIdx.z;
+  return x + (y * width) + (z * width * height);
+}
+
+}  // namespace mkn::gpu::cuda
+
+//
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cuda
@@ -72,6 +87,24 @@ struct Stream {
 
   cudaError_t result;
   cudaStream_t stream;
+};
+
+struct StreamEvent {
+  StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
+  ~StreamEvent() { /*MKN_GPU_ASSERT(result = cudaEventDestroy(event));*/
+  }
+
+  auto& operator()() { return event; };
+  void record() { MKN_GPU_ASSERT(result = cudaEventRecord(event, stream())); }
+  bool finished() const { return cudaEventQuery(event) == cudaSuccess; }
+  void reset() {
+    if (event) MKN_GPU_ASSERT(result = cudaEventDestroy(event));
+    MKN_GPU_ASSERT(result = cudaEventCreate(&event));
+  }
+
+  Stream& stream;
+  cudaError_t result;
+  cudaEvent_t event = nullptr;
 };
 
 template <typename T>
@@ -112,7 +145,7 @@ void alloc_managed(T*& p, Size size) {
   MKN_GPU_ASSERT(cudaMallocManaged((void**)&p, size * sizeof(T)));
 }
 
-void destroy(void* p) {
+void inline destroy(void* p) {
   KLOG(TRC);
   MKN_GPU_ASSERT(cudaFree(p));
 }
@@ -148,23 +181,6 @@ void take(T const* p, T* t, Size size = 1, Size start = 0) {
 }
 
 template <typename T, typename Size>
-void copy(T* dst, T const* src, Size size = 1, Size start = 0) {
-  KLOG(TRC);
-  Pointer p{dst};
-  if (p.is_host_ptr())
-    take(src, dst, size, start);
-  else
-    send(dst, src, size, start);
-}
-
-template <typename Type, typename Alloc0, typename Alloc1>
-void copy(std::vector<Type, Alloc0>& dst, std::vector<Type, Alloc1> const& src) {
-  KLOG(TRC);
-  assert(dst.size() >= src.size());
-  copy(dst.data(), src.data(), dst.size());
-}
-
-template <typename T, typename Size>
 void send_async(T* p, T const* t, Stream& stream, Size size = 1, Size start = 0) {
   KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpyAsync(p + start,               //
@@ -185,19 +201,25 @@ void take_async(T* p, Span& span, Stream& stream, std::size_t start) {
                                  stream()));
 }
 
-void sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
+void inline sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
+void inline sync(cudaStream_t stream) { MKN_GPU_ASSERT(cudaStreamSynchronize(stream)); }
 
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
-template <typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) { f<<<g, b, ds, s>>>(params...); },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
-  sync();
+  if constexpr (_sync) {
+    if (s)
+      sync(s);
+    else
+      sync();
+  }
 }
 
 //
@@ -254,7 +276,7 @@ void fill(Container& c, T val) {
 }
 
 //
-void prinfo(size_t dev = 0) {
+void inline prinfo(size_t dev = 0) {
   cudaDeviceProp devProp;
   [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;

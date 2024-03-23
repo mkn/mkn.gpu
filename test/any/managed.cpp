@@ -21,6 +21,8 @@ __global__ void kernel(S* structs) {
 template <typename L>
 std::uint32_t _test(L&& launcher) {
   ManagedVector<S> mem{NUM};
+  assert(mkn::gpu::Pointer{mem.data()}.is_managed_ptr());
+
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
   launcher(kernel, mem);

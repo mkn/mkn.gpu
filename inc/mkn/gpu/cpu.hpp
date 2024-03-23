@@ -93,14 +93,27 @@ struct Stream {
   std::size_t stream = 0;
 };
 
+struct StreamEvent {
+  StreamEvent(Stream&) {}
+  ~StreamEvent() {}
+
+  auto& operator()() { return event; };
+  void record() { ; }
+  bool finished() const { return true; }
+  void reset() {}
+
+  Stream stream;
+  std::size_t event = 0;
+};
+
 template <typename T>
 struct Pointer {
   Pointer(T* _t) : t{_t} {}
 
   bool is_unregistered_ptr() const { return t == nullptr; }
   bool is_host_ptr() const { return true; }
-  bool is_device_ptr() const { return false; }
-  bool is_managed_ptr() const { return false; }
+  bool is_device_ptr() const { return true; }
+  bool is_managed_ptr() const { return true; }
 
   T* t;
 };
@@ -129,7 +142,7 @@ void alloc_managed(T*& p, Size size) {
   MKN_GPU_ASSERT(p = reinterpret_cast<T*>(std::malloc(size * sizeof(T))));
 }
 
-void destroy(void* p) {
+void inline destroy(void* p) {
   KLOG(TRC);
   std::free(p);
 }
@@ -177,7 +190,7 @@ void take_async(T* p, Span& span, Stream& /*stream*/, std::size_t start) {
   take(p, span.data(), span.size(), start);
 }
 
-void sync() {}
+void inline sync() {}
 
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
@@ -186,7 +199,7 @@ namespace detail {
 static thread_local std::size_t idx = 0;
 }
 
-template <typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
