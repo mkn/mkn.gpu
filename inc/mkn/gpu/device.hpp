@@ -1,5 +1,5 @@
 /**
-Copyright (c) 2020, Philip Deegan.
+Copyright (c) 2024, Philip Deegan.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -99,6 +99,9 @@ struct DeviceMem {
   auto operator()() { return take(); }
 
   auto& size() const { return s; }
+
+  auto* data() { return p; }
+  auto* data() const { return p; }
 
   std::size_t s = 0;
   T* p = nullptr;

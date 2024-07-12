@@ -1,5 +1,5 @@
 /**
-Copyright (c) 2020, Philip Deegan.
+Copyright (c) 2024, Philip Deegan.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/assert.hpp"
 #include "mkn/kul/threads.hpp"
 
+#include "mkn/gpu/cli.hpp"
 #include "mkn/gpu/def.hpp"
 
 #include <cassert>
@@ -82,6 +83,15 @@ struct dim3 {
   std::size_t x = 1, y = 1, z = 1;
 };
 
+void setLimitMallocHeapSize(std::size_t const& /*bytes*/) {
+  // noop
+}
+
+auto supportsCooperativeLaunch(int const /*dev*/ = 0) {
+  int supportsCoopLaunch = 0;
+  return supportsCoopLaunch;
+}
+
 struct Stream {
   Stream() {}
   ~Stream() {}
@@ -91,6 +101,19 @@ struct Stream {
   void sync() {}
 
   std::size_t stream = 0;
+};
+
+struct StreamEvent {
+  StreamEvent(Stream&) {}
+  ~StreamEvent() {}
+
+  auto& operator()() { return event; };
+  void record() { ; }
+  bool finished() const { return true; }
+  void reset() {}
+
+  Stream stream;
+  std::size_t event = 0;
 };
 
 template <typename T>
@@ -129,7 +152,7 @@ void alloc_managed(T*& p, Size size) {
   MKN_GPU_ASSERT(p = reinterpret_cast<T*>(std::malloc(size * sizeof(T))));
 }
 
-void destroy(void* p) {
+void inline destroy(void* p) {
   KLOG(TRC);
   std::free(p);
 }
@@ -144,6 +167,12 @@ template <typename T>
 void destroy_host(T*& p) {
   KLOG(TRC);
   std::free(p);
+}
+
+template <typename T, typename Size>
+void copy_on_device(T* dst, T const* src, Size size = 1) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(std::memcpy(dst, src, size * sizeof(T)));
 }
 
 template <typename Size>
@@ -177,7 +206,7 @@ void take_async(T* p, Span& span, Stream& /*stream*/, std::size_t start) {
   take(p, span.data(), span.size(), start);
 }
 
-void sync() {}
+void inline sync() {}
 
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
@@ -186,7 +215,7 @@ namespace detail {
 static thread_local std::size_t idx = 0;
 }
 
-template <typename F, typename... Args>
+template <bool _sync = true, bool _coop = false, typename F, typename... Args>
 void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
@@ -251,6 +280,8 @@ static void global_gd_kernel(F& f, std::size_t s, Args... args) {
 }
 
 #include "launchers.hpp"
+
+void grid_sync() {}
 
 } /* namespace MKN_GPU_NS */
 

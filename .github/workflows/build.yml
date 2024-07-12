@@ -10,10 +10,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: test
       run: |
         curl -Lo mkn https://github.com/mkn/mkn/releases/download/latest/mkn_nix
         chmod +x mkn
-        KLOG=3 ./mkn clean build run -dtKOp cpu -a "-std=c++17" -g 0 test -W 9
+        KLOG=3 ./mkn clean build run -dtKOgp cpu -a "-std=c++17" test -W 9
