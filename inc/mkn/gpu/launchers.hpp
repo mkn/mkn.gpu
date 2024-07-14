@@ -37,7 +37,7 @@ struct GDLauncher : public GLauncher {
 
   template <typename F, typename... Args>
   auto operator()(F&& f, Args&&... args) {
-    _launch(s, std::forward<F>(f),
+    _launch(s, f,
             as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
             count, args...);
   }
@@ -57,7 +57,7 @@ struct GDLauncher : public GLauncher {
   }
 
   template <typename S, typename F, typename... PArgs, typename... Args>
-  void _launch(S& _s, F&& f, std::tuple<PArgs&...>*, Args&&... args) {
+  void _launch(S& _s, F& f, std::tuple<PArgs&...>*, Args&&... args) {
     MKN_GPU_NS::launch<_sync, _coop>(&global_gd_kernel<F, PArgs...>, g, b, ds, _s, f, args...);
   }
 };
