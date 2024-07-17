@@ -44,7 +44,7 @@ struct GDLauncher : public GLauncher {
 
   template <typename F, typename... Args>
   auto stream(Stream& s, F&& f, Args&&... args) {
-    _launch(s.stream, std::forward<F>(f),
+    _launch(s.stream, f,
             as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
             count, args...);
   }

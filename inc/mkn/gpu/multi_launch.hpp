@@ -47,7 +47,7 @@ template <typename Strat>
 struct StreamFunction {
   StreamFunction(Strat& strat_, StreamFunctionMode mode_) : strat{strat_}, mode{mode_} {}
   virtual ~StreamFunction() {}
-  virtual void run(std::uint32_t const) {};
+  virtual void run(std::uint32_t const) {}
 
   Strat& strat;
   StreamFunctionMode mode;
@@ -80,7 +80,6 @@ struct StreamHostFunction : StreamFunction<Strat> {
 template <typename Datas>
 struct StreamLauncher {
   using This = StreamLauncher<Datas>;
-  using T = typename Datas::value_type::value_type;
 
   StreamLauncher(Datas& datas_) : datas{datas_}, streams(datas.size()), data_step(datas.size(), 0) {
     for (auto& s : streams) events.emplace_back(s);
