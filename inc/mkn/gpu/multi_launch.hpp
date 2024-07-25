@@ -34,7 +34,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <cstdint>
+#include <vector>
 #include <thread>
+#include <mutex>
 #include <algorithm>
 
 #include "mkn/gpu.hpp"
@@ -42,12 +45,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace mkn::gpu {
 
 enum class StreamFunctionMode { HOST_WAIT = 0, DEVICE_WAIT };
+enum class StreamFunctionStatus { HOST_BUSY = 0, DEVICE_BUSY };
 
 template <typename Strat>
 struct StreamFunction {
   StreamFunction(Strat& strat_, StreamFunctionMode mode_) : strat{strat_}, mode{mode_} {}
   virtual ~StreamFunction() {}
-  virtual void run(std::uint32_t const) {}
+  virtual void run(std::uint32_t const) = 0;
 
   Strat& strat;
   StreamFunctionMode mode;
@@ -61,6 +65,8 @@ struct StreamDeviceFunction : StreamFunction<Strat> {
   StreamDeviceFunction(Strat& strat, Fn&& fn_)
       : Super{strat, StreamFunctionMode::DEVICE_WAIT}, fn{fn_} {}
   void run(std::uint32_t const i) override {
+    strat.events[i].record();
+
     mkn::gpu::GDLauncher<false>{strat.datas[i].size()}.stream(
         strat.streams[i], [=, fn = fn] __device__() mutable { fn(i); });
   }
@@ -77,9 +83,10 @@ struct StreamHostFunction : StreamFunction<Strat> {
   Fn fn;
 };
 
-template <typename Datas>
+template <typename Datas, typename Self_ = void>
 struct StreamLauncher {
-  using This = StreamLauncher<Datas>;
+  using This = StreamLauncher<Datas, Self_>;
+  using Self = std::conditional_t<std::is_same_v<Self_, void>, This, Self_>;
 
   StreamLauncher(Datas& datas_) : datas{datas_}, streams(datas.size()), data_step(datas.size(), 0) {
     for (auto& s : streams) events.emplace_back(s);
@@ -92,13 +99,13 @@ struct StreamLauncher {
   }
 
   template <typename Fn>
-  auto& dev(Fn&& fn) {
-    fns.emplace_back(std::make_shared<StreamDeviceFunction<This, Fn>>(self, std::forward<Fn>(fn)));
+  Self& dev(Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamDeviceFunction<Self, Fn>>(self, std::forward<Fn>(fn)));
     return self;
   }
   template <typename Fn>
-  auto& host(Fn&& fn) {
-    fns.emplace_back(std::make_shared<StreamHostFunction<This, Fn>>(self, std::forward<Fn>(fn)));
+  Self& host(Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamHostFunction<Self, Fn>>(self, std::forward<Fn>(fn)));
     return self;
   }
 
@@ -123,6 +130,7 @@ struct StreamLauncher {
 
   void operator()(std::uint32_t const i) {
     auto const& step = data_step[i];
+    assert(step < fns.size());
     fns[step]->run(i);
     if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT) events[i].record();
   }
@@ -142,16 +150,154 @@ struct StreamLauncher {
       if (fns[step]->mode == StreamFunctionMode::HOST_WAIT) return true;
       return events[i].finished();
     }();
-    if (b) events[i].reset();
+    if (b) {
+      events[i].reset();
+    }
     return b;
   }
 
   Datas& datas;
-  std::vector<std::shared_ptr<StreamFunction<This>>> fns;
+  std::vector<std::shared_ptr<StreamFunction<Self>>> fns;
   std::vector<mkn::gpu::Stream> streams;
   std::vector<mkn::gpu::StreamEvent> events;
   std::vector<std::uint16_t> data_step;
-  This& self = *this;
+  Self& self = *reinterpret_cast<Self*>(this);
+};
+
+enum class SFS : std::uint16_t { FIRST = 0, BUSY, WAIT, FIN };
+enum class SFP : std::uint16_t { WORK = 0, NEXT, SKIP };
+
+template <typename Strat, typename Fn>
+struct AsyncStreamHostFunction : StreamFunction<Strat> {
+  using Super = StreamFunction<Strat>;
+  using Super::strat;
+  AsyncStreamHostFunction(Strat& strat, Fn&& fn_)
+      : Super{strat, StreamFunctionMode::HOST_WAIT}, fn{fn_} {}
+  void run(std::uint32_t const i) override {
+    fn(i);
+    strat.status[i] = SFS::WAIT;
+  }
+  Fn fn;
+};
+
+template <typename Datas>
+struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLauncher<Datas>> {
+  using This = ThreadedStreamLauncher<Datas>;
+  using Super = StreamLauncher<Datas, This>;
+  using Super::datas;
+  using Super::events;
+  using Super::fns;
+
+  constexpr static std::size_t wait_ms = 1;
+  constexpr static std::size_t wait_max_ms = 100;
+
+  ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 1)
+      : Super{datas}, n_threads{_n_threads} {
+    thread_status.resize(n_threads, SFP::NEXT);
+    status.resize(datas.size(), SFS::FIRST);
+  }
+
+  ~ThreadedStreamLauncher() { join(); }
+
+  template <typename Fn>
+  This& host(Fn&& fn) {
+    fns.emplace_back(
+        std::make_shared<AsyncStreamHostFunction<This, Fn>>(*this, std::forward<Fn>(fn)));
+    return *this;
+  }
+
+  void operator()() { join(); }
+  Super& super() { return *this; }
+  void super(std::size_t const& idx) { return super()(idx); }
+
+  bool is_fn_finished(std::uint32_t i) {
+    auto const b = [&]() {
+      if (fns[step[i]]->mode == StreamFunctionMode::HOST_WAIT) return status[i] == SFS::WAIT;
+      return events[i].finished();
+    }();
+    if (b) {
+      events[i].reset();
+      status[i] = SFS::WAIT;
+    }
+    return b;
+  }
+  void thread_fn(std::size_t const& /*tid*/) {
+    std::size_t waitms = wait_ms;
+    while (!done) {
+      auto const& [ts, idx] = get_work();
+
+      if (ts == SFP::WORK) {
+        waitms = wait_ms;
+        super(idx);
+
+      } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(waitms));
+        waitms = waitms >= wait_max_ms ? wait_max_ms : waitms + 10;
+        if (check_finished()) done = 1;
+      }
+    }
+  }
+
+  bool check_finished() {
+    for (std::size_t i = 0; i < datas.size(); ++i)
+      if (status[i] != SFS::FIN) return false;
+    return true;
+  }
+
+  std::pair<SFP, std::size_t> get_work(std::size_t const& start = 0) {
+    std::unique_lock<std::mutex> lk(work_);
+    for (std::size_t i = start; i < datas.size(); ++i) {
+      if (status[i] == SFS::BUSY) {
+        if (is_fn_finished(i)) status[i] = SFS::WAIT;
+
+      } else if (status[i] == SFS::WAIT) {
+        ++step[i];
+
+        if (Super::is_finished(i)) {
+          status[i] = SFS::FIN;
+          continue;
+        }
+
+        status[i] = SFS::BUSY;
+        return std::make_pair(SFP::WORK, i);
+
+      } else if (status[i] == SFS::FIRST) {
+        status[i] = SFS::BUSY;
+        return std::make_pair(SFP::WORK, i);
+      }
+    }
+
+    return std::make_pair(SFP::SKIP, 0);
+  }
+
+  This& join(bool const& clear = false) {
+    if (!started) start();
+    if (joined) return *this;
+    joined = true;
+
+    for (auto& t : threads) t.join();
+    if (clear) threads.clear();
+    return *this;
+  }
+
+  This& start() {
+    if (started) return *this;
+    started = 1;
+    for (std::size_t i = 0; i < n_threads; ++i)
+      threads.emplace_back([i = i, this]() { thread_fn(i); });
+    return *this;
+  }
+
+  std::size_t const n_threads = 1;
+  std::vector<std::thread> threads;
+
+  std::mutex work_;
+  std::vector<SFS> status;
+  std::vector<SFP> thread_status;
+  std::vector<std::uint16_t>& step = Super::data_step;
+
+ private:
+  bool joined = false, started = false, done = false;
 };
 
 }  // namespace mkn::gpu

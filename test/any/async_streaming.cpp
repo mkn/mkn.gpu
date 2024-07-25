@@ -5,10 +5,13 @@
 #include <thread>
 #include <algorithm>
 
+#include "mkn/kul/dbg.hpp"
 #include "mkn/gpu/multi_launch.hpp"
 
-std::uint32_t static constexpr NUM = 128 * 1024 * 1024;  // ~ 1GB of doubles
-std::size_t constexpr static C = 5;                      // ~ 5GB of doubles
+using namespace std::chrono_literals;
+
+std::uint32_t static constexpr NUM = 128 * 1024;  // ~ 1MB of doubles
+std::size_t constexpr static C = 5;               // ~ 5MB of doubles
 
 template <typename T>
 using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;
@@ -20,6 +23,9 @@ struct A {
 std::uint32_t test() {
   using namespace mkn::gpu;
   using T = double;
+
+  KUL_DBG_FUNC_ENTER;
+
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
   for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
 
@@ -29,11 +35,57 @@ std::uint32_t test() {
 
   StreamLauncher{vecs}
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
-      .host([&](auto i) mutable { vecs[i][0] += 1; })
+      .host([&](auto i) mutable {
+        std::this_thread::sleep_for(200ms);
+        for (auto& e : vecs[i]) e += 1;
+      })
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })  //
       ();
 
   for (auto const& vec : vecs) std::cout << __LINE__ << " " << vec[0] << std::endl;
+
+  std::size_t val = 5;
+  for (auto const& vec : vecs) {
+    for (auto const& e : vec)
+      if (e != val) return 1;
+    ++val;
+  };
+
+  return 0;
+}
+
+std::uint32_t test_threaded() {
+  using namespace mkn::gpu;
+  using T = double;
+
+  KUL_DBG_FUNC_ENTER;
+
+  std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
+  for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
+
+  ManagedVector<T*> datas(C);
+  for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
+  auto views = datas.data();
+
+  using namespace std::chrono_literals;
+
+  ThreadedStreamLauncher{vecs, 6}
+      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
+      .host([&](auto i) mutable {
+        std::this_thread::sleep_for(200ms);
+        for (auto& e : vecs[i]) e += 1;
+      })
+      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })  //
+      ();
+
+  for (auto const& vec : vecs) std::cout << __LINE__ << " " << vec[0] << std::endl;
+
+  std::size_t val = 5;
+  for (auto const& vec : vecs) {
+    for (auto const& e : vec)
+      if (e != val) return 1;
+    ++val;
+  };
 
   return 0;
 }
@@ -41,5 +93,5 @@ std::uint32_t test() {
 int main() {
   KOUT(NON) << __FILE__;
 
-  return test();
+  return test() + test_threaded();
 }
