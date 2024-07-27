@@ -108,19 +108,46 @@ struct Stream {
 
 struct StreamEvent {
   StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() { /*MKN_GPU_ASSERT(result = cudaEventDestroy(event));*/ }
+  ~StreamEvent() {
+    if (start) {
+      MKN_GPU_ASSERT(result = cudaEventDestroy(start))
+    }
+    if (stop) {
+      MKN_GPU_ASSERT(result = cudaEventDestroy(stop))
+    }
+  }
 
-  auto& operator()() { return event; };
-  void record() { MKN_GPU_ASSERT(result = cudaEventRecord(event, stream())); }
-  bool finished() const { return cudaEventQuery(event) == cudaSuccess; }
+  StreamEvent(StreamEvent&& that) : stream{that.stream}, start{that.start}, stop{that.stop} {
+    that.start = nullptr;
+    that.stop = nullptr;
+  }
+
+  StreamEvent(StreamEvent const&) = delete;
+  StreamEvent& operator=(StreamEvent const&) = delete;
+
+  auto& operator()() { return stop; };
+  void record() {
+    if (stage == 0) {
+      MKN_GPU_ASSERT(result = cudaEventRecord(start, stream()));
+      ++stage;
+    } else {
+      MKN_GPU_ASSERT(result = cudaEventRecord(stop, stream()));
+      ++stage;
+    }
+  }
+  bool finished() const { return stage == 2 and cudaEventQuery(stop) == cudaSuccess; }
   void reset() {
-    if (event) MKN_GPU_ASSERT(result = cudaEventDestroy(event));
-    MKN_GPU_ASSERT(result = cudaEventCreate(&event));
+    if (start) MKN_GPU_ASSERT(result = cudaEventDestroy(start));
+    MKN_GPU_ASSERT(result = cudaEventCreate(&start));
+    if (stop) MKN_GPU_ASSERT(result = cudaEventDestroy(stop));
+    MKN_GPU_ASSERT(result = cudaEventCreate(&stop));
+    stage = 0;
   }
 
   Stream& stream;
   cudaError_t result;
-  cudaEvent_t event = nullptr;
+  cudaEvent_t start = nullptr, stop = nullptr;
+  std::uint16_t stage = 0;
 };
 
 template <typename T>

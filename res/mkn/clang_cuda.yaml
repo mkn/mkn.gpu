@@ -23,6 +23,9 @@ property:
 #   repo: git@github.com:mkn/
 #   mod-repo: git@github.com:mkn-mod/
 
+env: |
+  PATH=/usr/local/cuda/bin:${PATH}
+
 ##example include path for system
 #inc: /usr/local/cuda/targets/x86_64-linux/include
 path: /usr/local/cuda/targets/x86_64-linux/lib

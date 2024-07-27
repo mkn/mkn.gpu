@@ -132,6 +132,8 @@ struct StreamLauncher {
     auto const& step = data_step[i];
     assert(step < fns.size());
     fns[step]->run(i);
+    assert(i < events.size());
+    assert(step < fns.size());
     if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT) events[i].record();
   }
 
@@ -222,6 +224,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return b;
   }
   void thread_fn(std::size_t const& /*tid*/) {
+    cudaSetDevice(0);  // configurable
     std::size_t waitms = wait_ms;
     while (!done) {
       auto const& [ts, idx] = get_work();
@@ -284,7 +287,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     if (started) return *this;
     started = 1;
     for (std::size_t i = 0; i < n_threads; ++i)
-      threads.emplace_back([i = i, this]() { thread_fn(i); });
+      threads.emplace_back([&, i = i]() { thread_fn(i); });
     return *this;
   }
 

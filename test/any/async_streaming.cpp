@@ -92,6 +92,6 @@ std::uint32_t test_threaded() {
 
 int main() {
   KOUT(NON) << __FILE__;
-
+  cudaSetDevice(0);
   return test() + test_threaded();
 }
