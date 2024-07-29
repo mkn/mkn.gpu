@@ -83,6 +83,8 @@ void setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitMallocHeapSize, bytes));
 }
 
+void setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(hipSetDevice(dev)); }
+
 auto supportsCooperativeLaunch(int const dev = 0) {
   int supportsCoopLaunch = 0;
   MKN_GPU_ASSERT(
@@ -104,7 +106,8 @@ struct Stream {
 
 struct StreamEvent {
   StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() { /*MKN_GPU_ASSERT(result = hipEventDestroy(event));*/ }
+  ~StreamEvent() { /*MKN_GPU_ASSERT(result = hipEventDestroy(event));*/
+  }
 
   auto& operator()() { return event; };
   void record() { MKN_GPU_ASSERT(result = hipEventRecord(event, stream())); }

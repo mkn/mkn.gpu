@@ -83,9 +83,9 @@ struct dim3 {
   std::size_t x = 1, y = 1, z = 1;
 };
 
-void setLimitMallocHeapSize(std::size_t const& /*bytes*/) {
-  // noop
-}
+void setLimitMallocHeapSize(std::size_t const& /*bytes*/) {} /*noop*/
+
+void setDevice(std::size_t const& /*dev*/) {} /*noop*/
 
 auto supportsCooperativeLaunch(int const /*dev*/ = 0) {
   int supportsCoopLaunch = 0;

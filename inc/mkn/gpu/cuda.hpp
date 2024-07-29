@@ -88,6 +88,8 @@ void setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitMallocHeapSize, bytes));
 }
 
+void setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
+
 auto supportsCooperativeLaunch(int const dev = 0) {
   int supportsCoopLaunch = 0;
   MKN_GPU_ASSERT(cudaDeviceGetAttribute(&supportsCoopLaunch, cudaDevAttrCooperativeLaunch, dev));

@@ -133,7 +133,6 @@ struct StreamLauncher {
     assert(step < fns.size());
     fns[step]->run(i);
     assert(i < events.size());
-    assert(step < fns.size());
     if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT) events[i].record();
   }
 
@@ -224,7 +223,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return b;
   }
   void thread_fn(std::size_t const& /*tid*/) {
-    cudaSetDevice(0);  // configurable
+    // cudaSetDevice(0);  // configurable
     std::size_t waitms = wait_ms;
     while (!done) {
       auto const& [ts, idx] = get_work();
