@@ -1,4 +1,4 @@
-#! clean build test run -tOp rocm -x res/mkn/hipcc
+#! clean build test run -tOqp rocm -x res/mkn/hipcc -W
 
 name: mkn.gpu
 parent: headers
@@ -10,13 +10,13 @@ profile:
 
 - name: rocm
   parent: headers
-  arg: -DMKN_GPU_ROCM
+  # arg: -DMKN_GPU_ROCM=1
   test: test/any/(\w).cpp
         test/hip/(\w).cpp
 
 - name: cuda
   parent: headers
-  arg: -DMKN_GPU_CUDA
+  # arg: -DMKN_GPU_CUDA
   test: test/any/(\w).cpp
         test/cuda/(\w).cpp
 

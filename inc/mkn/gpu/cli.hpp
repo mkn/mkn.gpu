@@ -28,29 +28,28 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_HPP_
-#define _MKN_GPU_HPP_
+// IWYU pragma: private, include "mkn/gpu.hpp"
+#ifndef _MKN_GPU_CLI_HPP_
+#define _MKN_GPU_CLI_HPP_
 
-#include "mkn/gpu/defines.hpp"
+#include "mkn/kul/env.hpp"
+#include "mkn/kul/string.hpp"
 
 namespace mkn::gpu {
 
-__device__ uint32_t idx() {
-#if MKN_GPU_ROCM
-  return mkn::gpu::hip::idx();
+template <typename Device>
+struct Cli {
+  constexpr static inline char const* MKN_GPU_BX_THREADS = "MKN_GPU_BX_THREADS";
 
-#elif MKN_GPU_CUDA
-  return mkn::gpu::cuda::idx();
+  auto bx_threads() const {
+    if (kul::env::EXISTS(MKN_GPU_BX_THREADS))
+      return kul::String::INT32(kul::env::GET(MKN_GPU_BX_THREADS));
+    return dev.maxThreadsPerBlock;
+  }
 
-#elif MKN_GPU_CPU
-  return mkn::gpu::cpu::idx();
-
-#else
-#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
-
-#endif
-}
+  Device const& dev;
+};
 
 } /* namespace mkn::gpu */
 
-#endif /* _MKN_GPU_HPP_ */
+#endif /*_MKN_GPU_CLI_HPP_*/

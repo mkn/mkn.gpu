@@ -5,9 +5,14 @@
 ## The following compile flags will likely be required with their specific values for your current hardware
 # --cuda-gpu-arch="sm_61"  # sm_61 = nvidia 1080 (
 #  see: http://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards
+#
+# Common issues:
+#   GPUassert: unknown error
+#     reboot or try `sudo modprobe nvidia_uvm`
+#
 
 property:
-  cxx_flags: --std=c++17 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
+  cxx_flags: --std=c++20 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
   cxx_cuda: -x cuda --cuda-gpu-arch="sm_61" -Xclang -fcuda-allow-variadic-functions
 
 # local:
@@ -17,6 +22,9 @@ property:
 # remote:
 #   repo: git@github.com:mkn/
 #   mod-repo: git@github.com:mkn-mod/
+
+env: |
+  PATH=/usr/local/cuda/bin:${PATH}
 
 ##example include path for system
 #inc: /usr/local/cuda/targets/x86_64-linux/include

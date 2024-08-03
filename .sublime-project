@@ -9,7 +9,7 @@
 	{
 		"ClangFormat":
 		{
-			"binary": "clang-format-15",
+			"binary": "clang-format",
 			"format_on_save": true,
 			"style": "file"
 		},

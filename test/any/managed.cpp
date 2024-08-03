@@ -21,6 +21,10 @@ __global__ void kernel(S* structs) {
 template <typename L>
 std::uint32_t _test(L&& launcher) {
   ManagedVector<S> mem{NUM};
+  if constexpr (!mkn::gpu::CompileFlags::withCPU) {
+    assert(mkn::gpu::Pointer{mem.data()}.is_managed_ptr());
+  }
+
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
   launcher(kernel, mem);
@@ -58,9 +62,31 @@ std::uint32_t test_lambda_copy_capture_views() {
   return _test_lambda_copy_capture_views(mkn::gpu::GDLauncher{NUM});
 }
 
+std::uint32_t test_lambda_ref_copy_capture_views() {
+  mkn::gpu::GDLauncher launcher{NUM};
+
+  ManagedVector<S> mem{NUM};
+  for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
+
+  auto* view = mem.data();
+
+  auto fn = [=] __device__() {
+    auto i = mkn::gpu::idx();
+    view[i].f0 = view[i].d0 + 1;
+  };
+
+  launcher(fn);
+
+  for (std::uint32_t i = 0; i < NUM; ++i)
+    if (view[i].f0 != view[i].d0 + 1) return 1;
+
+  return 0;
+}
+
 int main() {
   KOUT(NON) << __FILE__;
-  return test() +        //
-         test_guess() +  //
-         test_lambda_copy_capture_views();
+  return test() +                            //
+         test_guess() +                      //
+         test_lambda_copy_capture_views() +  //
+         test_lambda_ref_copy_capture_views();
 }

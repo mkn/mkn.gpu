@@ -30,10 +30,20 @@ __global__ void vectoradd1(T* a, T* b) {
 template <typename Float>
 uint32_t test_add1() {
   std::vector<Float> b(NUM);
+
+  assert(mkn::gpu::Pointer{b.data()}.is_host_ptr());
+
   for (uint32_t i = 0; i < NUM; i++) b[i] = i;
   mkn::gpu::DeviceMem<Float> devA(NUM), devB(b);
+
+  if constexpr (!mkn::gpu::CompileFlags::withCPU) {
+    assert(mkn::gpu::Pointer{devA.p}.is_device_ptr());
+  }
+
   mkn::gpu::Launcher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd1<Float>, devA, devB);
   auto a = devA();
+
+  // assert(mkn::gpu::Pointer{a.data()}.is_device_ptr());
   for (uint32_t i = 0; i < NUM; i++)
     if (a[i] != b[i] + 1) return 1;
   return 0;
