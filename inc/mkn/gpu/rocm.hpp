@@ -104,22 +104,56 @@ struct Stream {
   hipStream_t stream;
 };
 
+//
+
 struct StreamEvent {
   StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() { /*MKN_GPU_ASSERT(result = hipEventDestroy(event));*/
+  ~StreamEvent() { clear(); }
+
+  StreamEvent(StreamEvent&& that) : stream{that.stream}, start{that.start}, stop{that.stop} {
+    that.start = nullptr;
+    that.stop = nullptr;
   }
 
-  auto& operator()() { return event; };
-  void record() { MKN_GPU_ASSERT(result = hipEventRecord(event, stream())); }
-  bool finished() const { return hipEventQuery(event) == hipSuccess; }
+  StreamEvent(StreamEvent const&) = delete;
+  StreamEvent& operator=(StreamEvent const&) = delete;
+
+  auto& operator()() { return stop; };
+  auto& record() {
+    if (stage == 0) {
+      MKN_GPU_ASSERT(result = hipEventRecord(start, stream()));
+      ++stage;
+    } else {
+      MKN_GPU_ASSERT(result = hipEventRecord(stop, stream()));
+      ++stage;
+    }
+    return *this;
+  }
+  auto& wait() {
+    if (stage == 0) {
+      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), start));
+    } else {
+      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), stop));
+    }
+    return *this;
+  }
+
+  void clear() {
+    if (start) MKN_GPU_ASSERT(result = hipEventDestroy(start));
+    if (stop) MKN_GPU_ASSERT(result = hipEventDestroy(stop));
+  }
+  bool finished() const { return stage == 2 and hipEventQuery(stop) == hipSuccess; }
   void reset() {
-    if (event) MKN_GPU_ASSERT(result = hipEventDestroy(event));
-    MKN_GPU_ASSERT(result = hipEventCreate(&event));
+    clear();
+    MKN_GPU_ASSERT(result = hipEventCreate(&start));
+    MKN_GPU_ASSERT(result = hipEventCreate(&stop));
+    stage = 0;
   }
 
   Stream& stream;
   hipError_t result;
-  hipEvent_t event = nullptr;
+  hipEvent_t start = nullptr, stop = nullptr;
+  std::uint16_t stage = 0;
 };
 
 // https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
@@ -250,7 +284,7 @@ void launch(F&& f, dim3 g, dim3 b, std::size_t ds, hipStream_t& s, Args&&... arg
         if constexpr (_coop) {
           auto address_of = [](auto& a) { return (void*)&a; };
           void* kernelArgs[] = {(address_of(params), ...)};
-          hipLaunchCooperativeKernel<F>(f, g, b, kernelArgs, ds, s);
+          MKN_GPU_ASSERT(hipLaunchCooperativeKernel<F>(f, g, b, kernelArgs, ds, s));
         } else {
           hipLaunchKernelGGL(f, g, b, ds, s, params...);
         }
@@ -322,7 +356,7 @@ void fill(Container& c, T val) {
 // https://rocm-developer-tools.github.io/HIP/group__Device.html
 void inline prinfo(size_t dev = 0) {
   hipDeviceProp_t devProp;
-  [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
+  MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
   KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
   KOUT(NON) << " agent name     " << devProp.name;
   KOUT(NON) << " cores          " << devProp.multiProcessorCount;
@@ -331,6 +365,17 @@ void inline prinfo(size_t dev = 0) {
   KOUT(NON) << " BlockMem       " << (devProp.sharedMemPerBlock / 1000) << " KB";
   KOUT(NON) << " warpSize       " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
+}
+
+void print_gpu_mem_used() {
+  float free_m = 0, total_m = 0, used_m = 0;
+  std::size_t free_t = 0, total_t = 0;
+  MKN_GPU_ASSERT(hipMemGetInfo(&free_t, &total_t));
+  free_m = free_t / 1048576.0;
+  total_m = total_t / 1048576.0;
+  used_m = total_m - free_m;
+  printf("  mem free %zu .... %f MB mem total %zu....%f MB mem used %f MB\n", free_t, free_m,
+         total_t, total_m, used_m);
 }
 
 __device__ void grid_sync() {

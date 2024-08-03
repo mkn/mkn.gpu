@@ -12,7 +12,7 @@
 #
 
 property:
-  cxx_flags: --std=c++17 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
+  cxx_flags: --std=c++20 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
   cxx_cuda: -x cuda --cuda-gpu-arch="sm_61" -Xclang -fcuda-allow-variadic-functions
 
 # local:

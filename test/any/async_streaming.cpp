@@ -39,10 +39,7 @@ std::uint32_t test() {
         std::this_thread::sleep_for(200ms);
         for (auto& e : vecs[i]) e += 1;
       })
-      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })  //
-      ();
-
-  for (auto const& vec : vecs) std::cout << __LINE__ << " " << vec[0] << std::endl;
+      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })();
 
   std::size_t val = 5;
   for (auto const& vec : vecs) {
@@ -54,7 +51,7 @@ std::uint32_t test() {
   return 0;
 }
 
-std::uint32_t test_threaded() {
+std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
   using namespace mkn::gpu;
   using T = double;
 
@@ -69,16 +66,14 @@ std::uint32_t test_threaded() {
 
   using namespace std::chrono_literals;
 
-  ThreadedStreamLauncher{vecs, 6}
+  ThreadedStreamLauncher{vecs, nthreads}
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
       .host([&](auto i) mutable {
         std::this_thread::sleep_for(200ms);
         for (auto& e : vecs[i]) e += 1;
       })
-      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })  //
-      ();
-
-  for (auto const& vec : vecs) std::cout << __LINE__ << " " << vec[0] << std::endl;
+      .barrier()
+      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })();
 
   std::size_t val = 5;
   for (auto const& vec : vecs) {
@@ -92,5 +87,5 @@ std::uint32_t test_threaded() {
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test() + test_threaded();
+  return test() + test_threaded() + test_threaded(6);
 }

@@ -108,12 +108,17 @@ struct StreamEvent {
   ~StreamEvent() {}
 
   auto& operator()() { return event; };
-  void record() { ; }
-  bool finished() const { return true; }
-  void reset() {}
+  auto& record() {
+    ++stage;
+    return *this;
+  }
+  auto& wait() { return *this; }
+  bool finished() const { return stage == 2; }
+  void reset() { stage = 0; }
 
   Stream stream;
   std::size_t event = 0;
+  std::uint16_t stage = 0;
 };
 
 template <typename T>

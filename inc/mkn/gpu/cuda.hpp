@@ -44,7 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cooperative_groups.h>
 #include "mkn/gpu/def.hpp"
 
-// #define MKN_GPU_ASSERT(x) (KASSERT((x) == cudaSuccess))
+//
 
 #define MKN_GPU_ASSERT(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
@@ -110,14 +110,7 @@ struct Stream {
 
 struct StreamEvent {
   StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() {
-    if (start) {
-      MKN_GPU_ASSERT(result = cudaEventDestroy(start))
-    }
-    if (stop) {
-      MKN_GPU_ASSERT(result = cudaEventDestroy(stop))
-    }
-  }
+  ~StreamEvent() { clear(); }
 
   StreamEvent(StreamEvent&& that) : stream{that.stream}, start{that.start}, stop{that.stop} {
     that.start = nullptr;
@@ -128,7 +121,7 @@ struct StreamEvent {
   StreamEvent& operator=(StreamEvent const&) = delete;
 
   auto& operator()() { return stop; };
-  void record() {
+  auto& record() {
     if (stage == 0) {
       MKN_GPU_ASSERT(result = cudaEventRecord(start, stream()));
       ++stage;
@@ -136,12 +129,25 @@ struct StreamEvent {
       MKN_GPU_ASSERT(result = cudaEventRecord(stop, stream()));
       ++stage;
     }
+    return *this;
+  }
+  auto& wait() {
+    if (stage == 0) {
+      MKN_GPU_ASSERT(result = cudaStreamWaitEvent(stream(), start));
+    } else {
+      MKN_GPU_ASSERT(result = cudaStreamWaitEvent(stream(), stop));
+    }
+    return *this;
+  }
+
+  void clear() {
+    if (start) MKN_GPU_ASSERT(result = cudaEventDestroy(start));
+    if (stop) MKN_GPU_ASSERT(result = cudaEventDestroy(stop));
   }
   bool finished() const { return stage == 2 and cudaEventQuery(stop) == cudaSuccess; }
   void reset() {
-    if (start) MKN_GPU_ASSERT(result = cudaEventDestroy(start));
+    clear();
     MKN_GPU_ASSERT(result = cudaEventCreate(&start));
-    if (stop) MKN_GPU_ASSERT(result = cudaEventDestroy(stop));
     MKN_GPU_ASSERT(result = cudaEventCreate(&stop));
     stage = 0;
   }
@@ -354,6 +360,17 @@ void inline prinfo(size_t dev = 0) {
   KOUT(NON) << " BlockMem       " << (devProp.sharedMemPerBlock / 1000) << " KB";
   KOUT(NON) << " warpSize       " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
+}
+
+void print_gpu_mem_used() {
+  float free_m = 0, total_m = 0, used_m = 0;
+  std::size_t free_t = 0, total_t = 0;
+  cudaMemGetInfo(&free_t, &total_t);
+  free_m = free_t / 1048576.0;
+  total_m = total_t / 1048576.0;
+  used_m = total_m - free_m;
+  printf("  mem free %zu .... %f MB mem total %zu....%f MB mem used %f MB\n", free_t, free_m,
+         total_t, total_m, used_m);
 }
 
 __device__ void grid_sync() {

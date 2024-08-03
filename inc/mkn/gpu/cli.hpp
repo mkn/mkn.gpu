@@ -32,31 +32,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_CLI_HPP_
 #define _MKN_GPU_CLI_HPP_
 
-#include <optional>
-#include <type_traits>
-
 #include "mkn/kul/env.hpp"
+#include "mkn/kul/string.hpp"
 
 namespace mkn::gpu {
 
 template <typename Device>
 struct Cli {
-  //
+  constexpr static inline char const* MKN_GPU_BX_THREADS = "MKN_GPU_BX_THREADS";
 
   auto bx_threads() const {
-    char const* ENV = "MKN_GPU_BX_THREADS";
-    if (mkn::kul::env::EXISTS(ENV)) {
-      return as<std::int32_t>(mkn::kul::env::GET(ENV));
-    }
+    if (kul::env::EXISTS(MKN_GPU_BX_THREADS))
+      return kul::String::INT32(kul::env::GET(MKN_GPU_BX_THREADS));
     return dev.maxThreadsPerBlock;
-  }
-
-  template <typename T>
-  auto static as(std::string const& from) {
-    T t;
-    std::stringstream ss(from);
-    ss >> t;
-    return t;
   }
 
   Device const& dev;
