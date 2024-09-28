@@ -38,8 +38,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <barrier>
 #include <cassert>
 #include <cstdint>
-#include <iostream>
 #include <algorithm>
+#include <stdexcept>
 
 #include "mkn/gpu.hpp"
 
@@ -135,7 +135,6 @@ struct StreamLauncher {
     assert(step < fns.size());
     assert(i < events.size());
 
-    // if (fns[step]->mode == StreamFunctionMode::HOST_WAIT) events[i].stream.sync();
     fns[step]->run(i);
     if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT) events[i].record().wait();
   }
@@ -203,6 +202,55 @@ struct StreamBarrierFunction : StreamFunction<Strat> {
   std::barrier<decltype(on_completion)> sync_point;
 };
 
+template <typename Strat>
+struct StreamGroupBarrierFunction : StreamFunction<Strat> {
+  using This = StreamGroupBarrierFunction<Strat>;
+  using Super = StreamFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamGroupBarrierFunction Group size must be a divisor of datas";
+
+  struct GroupBarrier {
+    This* self;
+    std::uint16_t group_id;
+
+    std::function<void()> on_completion = [this]() {
+      std::size_t const offset = self->group_size * group_id;
+      for (std::size_t i = offset; i < offset + self->group_size; ++i)
+        self->strat.status[i] = SFS::WAIT;
+    };
+
+    std::barrier<decltype(on_completion)> sync_point{static_cast<std::int64_t>(self->group_size),
+                                                     on_completion};
+
+    GroupBarrier(This& slf, std::uint16_t const gid) : self{&slf}, group_id{gid} {}
+    void arrive() { [[maybe_unused]] auto ret = sync_point.arrive(); }
+  };
+
+  static auto make_sync_points(This& self, Strat const& strat, std::size_t const& group_size) {
+    if (strat.datas.size() % group_size > 0) throw std::runtime_error(std::string{MOD_GROUP_ERROR});
+    std::vector<std::unique_ptr<GroupBarrier>> v;
+    std::uint16_t const groups = strat.datas.size() / group_size;
+    v.reserve(groups);
+    for (std::size_t i = 0; i < groups; ++i)
+      v.emplace_back(std::make_unique<GroupBarrier>(self, i));
+    return std::move(v);
+  }
+
+  StreamGroupBarrierFunction(std::size_t const& gs, Strat& strat)
+      : Super{strat, StreamFunctionMode::BARRIER},
+        group_size{gs},
+        sync_points{make_sync_points(*this, strat, group_size)} {}
+
+  void run(std::uint32_t const i) override {
+    sync_points[((i - (i % group_size)) / group_size)]->arrive();
+  }
+
+  std::size_t const group_size;
+  std::vector<std::unique_ptr<GroupBarrier>> sync_points;
+};
+
 template <typename Datas>
 struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLauncher<Datas>> {
   using This = ThreadedStreamLauncher<Datas>;
@@ -211,8 +259,9 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   using Super::events;
   using Super::fns;
 
-  constexpr static std::size_t wait_ms = 1;
-  constexpr static std::size_t wait_max_ms = 100;
+  constexpr static std::size_t wait_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_;
+  constexpr static std::size_t wait_add_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_ADD_;
+  constexpr static std::size_t wait_max_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_MAX_;
 
   ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 1,
                          std::size_t const device = 0)
@@ -232,6 +281,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   This& barrier() {
     fns.emplace_back(std::make_shared<StreamBarrierFunction<This>>(*this));
+    return *this;
+  }
+
+  This& group_barrier(std::size_t const& group_size) {
+    fns.emplace_back(std::make_shared<StreamGroupBarrierFunction<This>>(group_size, *this));
     return *this;
   }
 
@@ -264,7 +318,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(waitms));
-      waitms = waitms >= wait_max_ms ? wait_max_ms : waitms + 10;
+      waitms = waitms >= wait_max_ms ? wait_max_ms : waitms + wait_add_ms;
     }
   }
 
