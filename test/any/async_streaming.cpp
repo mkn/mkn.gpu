@@ -1,13 +1,12 @@
 
-#include <cassert>
-#include <chrono>
-#include <iostream>
 #include <thread>
 #include <algorithm>
 
 #include "mkn/kul/dbg.hpp"
+#include "mkn/kul/time.hpp"
 #include "mkn/gpu/multi_launch.hpp"
 
+using namespace mkn::gpu;
 using namespace std::chrono_literals;
 
 std::uint32_t static constexpr NUM = 128 * 1024;  // ~ 1MB of doubles
@@ -21,10 +20,8 @@ struct A {
 };
 
 std::uint32_t test() {
-  using namespace mkn::gpu;
-  using T = double;
-
   KUL_DBG_FUNC_ENTER;
+  using T = double;
 
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
   for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
@@ -33,6 +30,7 @@ std::uint32_t test() {
   for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
   auto views = datas.data();
 
+  auto const start = mkn::kul::Now::MILLIS();
   StreamLauncher{vecs}
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
       .host([&](auto i) mutable {
@@ -40,6 +38,9 @@ std::uint32_t test() {
         for (auto& e : vecs[i]) e += 1;
       })
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })();
+  auto const end = mkn::kul::Now::MILLIS();
+
+  if (end - start > 1.5e3) return 1;
 
   std::size_t val = 5;
   for (auto const& vec : vecs) {
@@ -52,10 +53,8 @@ std::uint32_t test() {
 }
 
 std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
-  using namespace mkn::gpu;
-  using T = double;
-
   KUL_DBG_FUNC_ENTER;
+  using T = double;
 
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
   for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
@@ -63,8 +62,6 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
   ManagedVector<T*> datas(C);
   for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
   auto views = datas.data();
-
-  using namespace std::chrono_literals;
 
   ThreadedStreamLauncher{vecs, nthreads}
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
@@ -85,7 +82,41 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
   return 0;
 }
 
+std::uint32_t test_threaded_group_barrier(std::size_t const& nthreads = 2) {
+  using T = double;
+  KUL_DBG_FUNC_ENTER;
+
+  std::vector<ManagedVector<T>> vecs(C + 1, ManagedVector<T>(NUM, 0));
+  for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
+
+  ManagedVector<T*> datas(C + 1);
+  for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
+  auto views = datas.data();
+
+  auto const start = mkn::kul::Now::MILLIS();
+  ThreadedStreamLauncher{vecs, nthreads}
+      .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 1; })
+      .host([&](auto i) mutable {
+        std::this_thread::sleep_for(200ms);
+        for (auto& e : vecs[i]) e += 1;
+      })
+      .group_barrier(3)
+      .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; })();
+  auto const end = mkn::kul::Now::MILLIS();
+
+  if (end - start > 1e3) return 1;
+
+  std::size_t val = 5;
+  for (auto const& vec : vecs) {
+    for (auto const& e : vec)
+      if (e != val) return 1;
+    ++val;
+  };
+
+  return 0;
+}
+
 int main() {
   KOUT(NON) << __FILE__;
-  return test() + test_threaded() + test_threaded(6);
+  return test() + test_threaded() + test_threaded(6) + test_threaded_group_barrier();
 }

@@ -1,9 +1,5 @@
-
-
 #ifndef _MKN_GPU_DEFINES_HPP_
 #define _MKN_GPU_DEFINES_HPP_
-
-#include <type_traits>
 
 #if !defined(MKN_GPU_FN_PER_NS)
 #define MKN_GPU_FN_PER_NS 0
