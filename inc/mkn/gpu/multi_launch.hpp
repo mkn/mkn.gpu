@@ -50,12 +50,28 @@ enum class StreamFunctionStatus { HOST_BUSY = 0, DEVICE_BUSY };
 
 template <typename Strat>
 struct StreamFunction {
-  StreamFunction(Strat& strat_, StreamFunctionMode mode_) : strat{strat_}, mode{mode_} {}
+  StreamFunction(Strat& strat_, StreamFunctionMode const mode_) : strat{strat_}, mode{mode_} {}
   virtual ~StreamFunction() {}
   virtual void run(std::uint32_t const) = 0;
 
   Strat& strat;
   StreamFunctionMode mode;
+};
+
+std::size_t group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
+  return ((i - (i % gs)) / gs);
+}
+
+template <typename Strat>
+struct StreamGroupFunction : public StreamFunction<Strat> {
+  using Super = StreamFunction<Strat>;
+  StreamGroupFunction(std::size_t const& gs, Strat& strat_, StreamFunctionMode const mode_)
+      : Super{strat_, mode_}, group_size{gs} {}
+  virtual ~StreamGroupFunction() {}
+
+  std::size_t group_idx(std::size_t const& i) const { return group_idx_modulo(group_size, i); }
+
+  std::size_t const group_size = 0;
 };
 
 template <typename Strat, typename Fn>
@@ -203,9 +219,9 @@ struct StreamBarrierFunction : StreamFunction<Strat> {
 };
 
 template <typename Strat>
-struct StreamGroupBarrierFunction : StreamFunction<Strat> {
+struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
   using This = StreamGroupBarrierFunction<Strat>;
-  using Super = StreamFunction<Strat>;
+  using Super = StreamGroupFunction<Strat>;
   using Super::strat;
 
   std::string_view constexpr static MOD_GROUP_ERROR =
@@ -225,6 +241,7 @@ struct StreamGroupBarrierFunction : StreamFunction<Strat> {
                                                      on_completion};
 
     GroupBarrier(This& slf, std::uint16_t const gid) : self{&slf}, group_id{gid} {}
+    GroupBarrier(GroupBarrier const&) = delete;
     void arrive() { [[maybe_unused]] auto ret = sync_point.arrive(); }
   };
 
@@ -239,16 +256,46 @@ struct StreamGroupBarrierFunction : StreamFunction<Strat> {
   }
 
   StreamGroupBarrierFunction(std::size_t const& gs, Strat& strat)
-      : Super{strat, StreamFunctionMode::BARRIER},
-        group_size{gs},
-        sync_points{make_sync_points(*this, strat, group_size)} {}
+      : Super{gs, strat, StreamFunctionMode::BARRIER},
+        sync_points{make_sync_points(*this, strat, gs)} {}
 
-  void run(std::uint32_t const i) override {
-    sync_points[((i - (i % group_size)) / group_size)]->arrive();
+  void run(std::uint32_t const i) override { sync_points[Super::group_idx(i)]->arrive(); }
+
+  std::vector<std::unique_ptr<GroupBarrier>> sync_points;
+};
+
+template <typename Strat, typename Fn>
+struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
+  using Super = StreamGroupFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamHostGroupMutexFunction Group size must be a divisor of datas";
+
+  static auto make_mutices(Strat const& strat, std::size_t const& group_size) {
+    if (strat.datas.size() % group_size > 0) throw std::runtime_error(std::string{MOD_GROUP_ERROR});
+    std::uint16_t const groups = strat.datas.size() / group_size;
+    return std::vector<std::mutex>{groups};
   }
 
-  std::size_t const group_size;
-  std::vector<std::unique_ptr<GroupBarrier>> sync_points;
+  StreamHostGroupMutexFunction(std::size_t const& gs, Strat& strat, Fn&& fn_)
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT},
+        fn{fn_},
+        mutices{make_mutices(strat, gs)} {}
+
+  void run(std::uint32_t const i) override {
+    std::unique_lock<std::mutex> lock(mutices[Super::group_idx(i)], std::defer_lock);
+
+    if (lock.try_lock()) {
+      fn(i);
+      strat.status[i] = SFS::WAIT;  // done
+    } else {
+      strat.status[i] = SFS::FIRST;  // retry
+    }
+  }
+
+  Fn fn;
+  std::vector<std::mutex> mutices;
 };
 
 template <typename Datas>
@@ -286,6 +333,13 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   This& group_barrier(std::size_t const& group_size) {
     fns.emplace_back(std::make_shared<StreamGroupBarrierFunction<This>>(group_size, *this));
+    return *this;
+  }
+
+  template <typename Fn>
+  This& host_group_mutex(std::size_t const& group_size, Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamHostGroupMutexFunction<This, Fn>>(
+        group_size, *this, std::forward<Fn>(fn)));
     return *this;
   }
 
