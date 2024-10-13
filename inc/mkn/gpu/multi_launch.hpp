@@ -382,9 +382,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return true;
   }
 
-  std::pair<SFP, std::size_t> get_work(std::size_t const& start = 0) {
+  std::pair<SFP, std::size_t> get_work(/*std::size_t const& start = 0*/) {
     std::scoped_lock<std::mutex> lk(work_);
-    for (std::size_t i = start; i < datas.size(); ++i) {
+    // for (std::size_t i = start; i < datas.size(); ++i) {
+    for (; work_i < datas.size(); ++work_i) {
+      auto const& i = work_i;
       if (status[i] == SFS::BUSY) {
         if (is_fn_finished(i)) status[i] = SFS::WAIT;
       }
@@ -404,6 +406,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
         return std::make_pair(SFP::WORK, i);
       }
     }
+    work_i = 0;
     if (check_finished()) done = 1;
     return std::make_pair(SFP::SKIP, 0);
   }
@@ -437,6 +440,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
  private:
   bool joined = false, started = false, done = false;
+  std::size_t work_i = 0;
 };
 
 }  // namespace mkn::gpu
