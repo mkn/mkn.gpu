@@ -50,12 +50,28 @@ enum class StreamFunctionStatus { HOST_BUSY = 0, DEVICE_BUSY };
 
 template <typename Strat>
 struct StreamFunction {
-  StreamFunction(Strat& strat_, StreamFunctionMode mode_) : strat{strat_}, mode{mode_} {}
+  StreamFunction(Strat& strat_, StreamFunctionMode const mode_) : strat{strat_}, mode{mode_} {}
   virtual ~StreamFunction() {}
   virtual void run(std::uint32_t const) = 0;
 
   Strat& strat;
   StreamFunctionMode mode;
+};
+
+std::size_t group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
+  return ((i - (i % gs)) / gs);
+}
+
+template <typename Strat>
+struct StreamGroupFunction : public StreamFunction<Strat> {
+  using Super = StreamFunction<Strat>;
+  StreamGroupFunction(std::size_t const& gs, Strat& strat_, StreamFunctionMode const mode_)
+      : Super{strat_, mode_}, group_size{gs} {}
+  virtual ~StreamGroupFunction() {}
+
+  std::size_t group_idx(std::size_t const& i) const { return group_idx_modulo(group_size, i); }
+
+  std::size_t const group_size = 0;
 };
 
 template <typename Strat, typename Fn>
@@ -203,9 +219,9 @@ struct StreamBarrierFunction : StreamFunction<Strat> {
 };
 
 template <typename Strat>
-struct StreamGroupBarrierFunction : StreamFunction<Strat> {
+struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
   using This = StreamGroupBarrierFunction<Strat>;
-  using Super = StreamFunction<Strat>;
+  using Super = StreamGroupFunction<Strat>;
   using Super::strat;
 
   std::string_view constexpr static MOD_GROUP_ERROR =
@@ -225,6 +241,7 @@ struct StreamGroupBarrierFunction : StreamFunction<Strat> {
                                                      on_completion};
 
     GroupBarrier(This& slf, std::uint16_t const gid) : self{&slf}, group_id{gid} {}
+    GroupBarrier(GroupBarrier const&) = delete;
     void arrive() { [[maybe_unused]] auto ret = sync_point.arrive(); }
   };
 
@@ -235,20 +252,71 @@ struct StreamGroupBarrierFunction : StreamFunction<Strat> {
     v.reserve(groups);
     for (std::size_t i = 0; i < groups; ++i)
       v.emplace_back(std::make_unique<GroupBarrier>(self, i));
-    return std::move(v);
+    return v;
   }
 
   StreamGroupBarrierFunction(std::size_t const& gs, Strat& strat)
-      : Super{strat, StreamFunctionMode::BARRIER},
-        group_size{gs},
-        sync_points{make_sync_points(*this, strat, group_size)} {}
+      : Super{gs, strat, StreamFunctionMode::BARRIER},
+        sync_points{make_sync_points(*this, strat, gs)} {}
 
-  void run(std::uint32_t const i) override {
-    sync_points[((i - (i % group_size)) / group_size)]->arrive();
+  void run(std::uint32_t const i) override { sync_points[Super::group_idx(i)]->arrive(); }
+
+  std::vector<std::unique_ptr<GroupBarrier>> sync_points;
+};
+
+template <typename Strat, typename Fn>
+struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
+  using Super = StreamGroupFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamHostGroupMutexFunction Group size must be a divisor of datas";
+
+  static auto make_mutices(Strat const& strat, std::size_t const& group_size) {
+    if (strat.datas.size() % group_size > 0) throw std::runtime_error(std::string{MOD_GROUP_ERROR});
+    std::uint16_t const groups = strat.datas.size() / group_size;
+    return std::vector<std::mutex>{groups};
   }
 
-  std::size_t const group_size;
-  std::vector<std::unique_ptr<GroupBarrier>> sync_points;
+  StreamHostGroupMutexFunction(std::size_t const& gs, Strat& strat, Fn&& fn_)
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT},
+        fn{fn_},
+        mutices{make_mutices(strat, gs)} {}
+
+  void run(std::uint32_t const i) override {
+    std::unique_lock<std::mutex> lock(mutices[Super::group_idx(i)], std::defer_lock);
+
+    if (lock.try_lock()) {
+      fn(i);
+      strat.status[i] = SFS::WAIT;  // done
+    } else {
+      strat.status[i] = SFS::FIRST;  // retry
+    }
+  }
+
+  Fn fn;
+  std::vector<std::mutex> mutices;
+};
+
+template <typename Strat, typename Fn>
+struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
+  using Super = StreamGroupFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamHostGroupIndexFunction Group size must be a divisor of datas";
+
+  StreamHostGroupIndexFunction(std::size_t const& gs, std::size_t const& gid_, Strat& strat,
+                               Fn&& fn_)
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT}, fn{fn_}, gid{gid_} {}
+
+  void run(std::uint32_t const i) override {
+    if (i % Super::group_size == gid) fn(i);
+    strat.status[i] = SFS::WAIT;  // done
+  }
+
+  Fn fn;
+  std::size_t const gid;
 };
 
 template <typename Datas>
@@ -286,6 +354,20 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   This& group_barrier(std::size_t const& group_size) {
     fns.emplace_back(std::make_shared<StreamGroupBarrierFunction<This>>(group_size, *this));
+    return *this;
+  }
+
+  template <typename Fn>
+  This& host_group_mutex(std::size_t const& group_size, Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamHostGroupMutexFunction<This, Fn>>(
+        group_size, *this, std::forward<Fn>(fn)));
+    return *this;
+  }
+
+  template <typename Fn>
+  This& host_group_idx(std::size_t const& group_size, std::size_t const& group_idx, Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamHostGroupIndexFunction<This, Fn>>(
+        group_size, group_idx, *this, std::forward<Fn>(fn)));
     return *this;
   }
 
@@ -328,9 +410,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return true;
   }
 
-  std::pair<SFP, std::size_t> get_work(std::size_t const& start = 0) {
+  std::pair<SFP, std::size_t> get_work(/*std::size_t const& start = 0*/) {
     std::scoped_lock<std::mutex> lk(work_);
-    for (std::size_t i = start; i < datas.size(); ++i) {
+    // for (std::size_t i = start; i < datas.size(); ++i) {
+    for (; work_i < datas.size(); ++work_i) {
+      auto const& i = work_i;
       if (status[i] == SFS::BUSY) {
         if (is_fn_finished(i)) status[i] = SFS::WAIT;
       }
@@ -350,6 +434,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
         return std::make_pair(SFP::WORK, i);
       }
     }
+    work_i = 0;
     if (check_finished()) done = 1;
     return std::make_pair(SFP::SKIP, 0);
   }
@@ -383,6 +468,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
  private:
   bool joined = false, started = false, done = false;
+  std::size_t work_i = 0;
 };
 
 }  // namespace mkn::gpu
