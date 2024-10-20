@@ -252,7 +252,7 @@ struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
     v.reserve(groups);
     for (std::size_t i = 0; i < groups; ++i)
       v.emplace_back(std::make_unique<GroupBarrier>(self, i));
-    return std::move(v);
+    return v;
   }
 
   StreamGroupBarrierFunction(std::size_t const& gs, Strat& strat)
@@ -298,6 +298,27 @@ struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
   std::vector<std::mutex> mutices;
 };
 
+template <typename Strat, typename Fn>
+struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
+  using Super = StreamGroupFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamHostGroupIndexFunction Group size must be a divisor of datas";
+
+  StreamHostGroupIndexFunction(std::size_t const& gs, std::size_t const& gid_, Strat& strat,
+                               Fn&& fn_)
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT}, fn{fn_}, gid{gid_} {}
+
+  void run(std::uint32_t const i) override {
+    if (i % Super::group_size == gid) fn(i);
+    strat.status[i] = SFS::WAIT;  // done
+  }
+
+  Fn fn;
+  std::size_t const gid;
+};
+
 template <typename Datas>
 struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLauncher<Datas>> {
   using This = ThreadedStreamLauncher<Datas>;
@@ -340,6 +361,13 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   This& host_group_mutex(std::size_t const& group_size, Fn&& fn) {
     fns.emplace_back(std::make_shared<StreamHostGroupMutexFunction<This, Fn>>(
         group_size, *this, std::forward<Fn>(fn)));
+    return *this;
+  }
+
+  template <typename Fn>
+  This& host_group_idx(std::size_t const& group_size, std::size_t const& group_idx, Fn&& fn) {
+    fns.emplace_back(std::make_shared<StreamHostGroupIndexFunction<This, Fn>>(
+        group_size, group_idx, *this, std::forward<Fn>(fn)));
     return *this;
   }
 

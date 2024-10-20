@@ -45,8 +45,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // #define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
 
-#define MKN_GPU_ASSERT(ans) \
-  { gpuAssert((ans), __FILE__, __LINE__); }
+#define MKN_GPU_ASSERT(ans)               \
+  {                                       \
+    gpuAssert((ans), __FILE__, __LINE__); \
+  }
 inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
   if (code != hipSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
@@ -203,8 +205,9 @@ void alloc_host(T*& p, Size size) {
 
 template <typename T, typename Size>
 void alloc_managed(T*& p, Size size) {
+  auto const bytes = size * sizeof(T);
   KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
-  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, size * sizeof(T)));
+  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, bytes));
 }
 
 void inline destroy(void* p) {
