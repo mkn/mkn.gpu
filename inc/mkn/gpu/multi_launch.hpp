@@ -411,8 +411,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   }
 
   std::pair<SFP, std::size_t> get_work(/*std::size_t const& start = 0*/) {
-    std::scoped_lock<std::mutex> lk(work_);
-    // for (std::size_t i = start; i < datas.size(); ++i) {
+    // std::scoped_lock<std::mutex> lk(work_);
+    std::unique_lock<std::mutex> lock(work_, std::defer_lock);
+
+    if (not lock.try_lock()) return std::make_pair(SFP::SKIP, 0);
+
     for (; work_i < datas.size(); ++work_i) {
       auto const& i = work_i;
       if (status[i] == SFS::BUSY) {
