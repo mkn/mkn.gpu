@@ -63,8 +63,8 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
   for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
   auto views = datas.data();
 
-  ThreadedStreamLauncher{vecs, nthreads}
-      .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
+  ThreadedStreamLauncher tsl{vecs, nthreads};
+  tsl.dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 1; })
       .host([&](auto i) mutable {
         std::this_thread::sleep_for(200ms);
         for (auto& e : vecs[i]) e += 1;
@@ -78,6 +78,8 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
       if (e != val) return 1;
     ++val;
   };
+
+  tsl.print_times();
 
   return 0;
 }

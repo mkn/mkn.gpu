@@ -42,6 +42,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/time.hpp"
 
 namespace mkn::gpu {
 
@@ -61,6 +62,18 @@ struct StreamFunction {
 std::size_t group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
   return ((i - (i % gs)) / gs);
 }
+
+struct Timer {
+  auto time() const {
+    assert(s > 0);
+    assert(e > 0);
+    return e - s;
+  }
+  void start() { s = kul::Now::NANOS(); }
+  void stop() { e = kul::Now::NANOS(); }
+
+  std::size_t s = 0, e = 0;
+};
 
 template <typename Strat>
 struct StreamGroupFunction : public StreamFunction<Strat> {
@@ -82,8 +95,7 @@ struct StreamDeviceFunction : StreamFunction<Strat> {
   StreamDeviceFunction(Strat& strat, Fn&& fn_)
       : Super{strat, StreamFunctionMode::DEVICE_WAIT}, fn{fn_} {}
   void run(std::uint32_t const i) override {
-    strat.events[i].record();
-
+    //
     mkn::gpu::GDLauncher<false>{strat.datas[i].size()}.stream(
         strat.streams[i], [=, fn = fn] __device__() mutable { fn(i); });
   }
@@ -129,7 +141,8 @@ struct StreamLauncher {
   void operator()() {
     using namespace std::chrono_literals;
 
-    if (fns.size() == 0) return;
+    if (fns.size() == 0 || datas.size() == 0) return;
+    times.resize(fns.size() * datas.size());
 
     for (std::size_t i = 0; i < datas.size(); ++i) self(i);
 
@@ -151,9 +164,13 @@ struct StreamLauncher {
     assert(step < fns.size());
     assert(i < events.size());
 
+    times[(i * fns.size()) + step].start();
     fns[step]->run(i);
-    if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT) events[i].record().wait();
+    if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT)
+      events[i]([this, i = i]() { Self::finished_callback(this->self, i); });
   }
+
+  void static finished_callback(This& /*self*/, std::uint32_t const& /*i*/) { /*noop*/ }
 
   bool is_finished() const {
     std::uint32_t finished = 0;
@@ -165,14 +182,13 @@ struct StreamLauncher {
   bool is_finished(std::uint32_t idx) const { return data_step[idx] == fns.size(); }
 
   bool is_fn_finished(std::uint32_t const& i) {
+    auto const& step = data_step[i];
     auto const b = [&]() {
-      auto const& step = data_step[i];
       if (fns[step]->mode == StreamFunctionMode::HOST_WAIT) return true;
       return events[i].finished();
     }();
-    if (b) {
-      events[i].reset();
-    }
+    if (b) times[(i * fns.size()) + step].stop();
+
     return b;
   }
 
@@ -181,6 +197,7 @@ struct StreamLauncher {
   std::vector<mkn::gpu::Stream> streams;
   std::vector<mkn::gpu::StreamEvent> events;
   std::vector<std::uint16_t> data_step;
+  std::vector<Timer> times;
   Self& self = *reinterpret_cast<Self*>(this);
 };
 
@@ -371,19 +388,16 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return *this;
   }
 
+  void static finished_callback(This& self, std::uint32_t const& i) { self.status[i] = SFS::WAIT; }
+
   void operator()() { join(); }
   Super& super() { return *this; }
+  Super const& super() const { return *this; }
   void super(std::size_t const& idx) { return super()(idx); }
 
   bool is_fn_finished(std::uint32_t const& i) {
-    auto const b = [&]() {
-      if (fns[step[i]]->mode == StreamFunctionMode::HOST_WAIT) return status[i] == SFS::WAIT;
-      return events[i].finished();
-    }();
-    if (b) {
-      events[i].reset();
-      status[i] = SFS::WAIT;
-    }
+    auto const b = status[i] == SFS::WAIT;
+    if (b) super().times[(i * fns.size()) + step[i]].stop();
     return b;
   }
 
@@ -410,17 +424,22 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return true;
   }
 
-  std::pair<SFP, std::size_t> get_work(/*std::size_t const& start = 0*/) {
-    // std::scoped_lock<std::mutex> lk(work_);
+  std::pair<SFP, std::size_t> get_work() {
     std::unique_lock<std::mutex> lock(work_, std::defer_lock);
 
     if (not lock.try_lock()) return std::make_pair(SFP::SKIP, 0);
 
     for (; work_i < datas.size(); ++work_i) {
       auto const& i = work_i;
-      if (status[i] == SFS::BUSY) {
-        if (is_fn_finished(i)) status[i] = SFS::WAIT;
+      if (status[i] == SFS::FIN || status[i] == SFS::BUSY) continue;
+
+      if (status[i] == SFS::FIRST) {
+        status[i] = SFS::BUSY;
+        return std::make_pair(SFP::WORK, i);
       }
+
+      if (!is_fn_finished(i)) continue;
+
       if (status[i] == SFS::WAIT) {
         ++step[i];
 
@@ -429,10 +448,6 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
           continue;
         }
 
-        status[i] = SFS::BUSY;
-        return std::make_pair(SFP::WORK, i);
-
-      } else if (status[i] == SFS::FIRST) {
         status[i] = SFS::BUSY;
         return std::make_pair(SFP::WORK, i);
       }
@@ -455,9 +470,26 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   This& start() {
     if (started) return *this;
     started = 1;
+
+    Super::times.resize(fns.size() * datas.size());
+
     for (std::size_t i = 0; i < n_threads; ++i)
       threads.emplace_back([&, i = i]() { thread_fn(i); });
     return *this;
+  }
+
+  void print_times() const {
+    std::size_t fn_idx = 0, data_idx = 0;
+
+    for (auto const& t : super().times) {
+      KOUT(NON) << data_idx << " " << fn_idx << " " << (t.time() / 1e6);
+
+      ++fn_idx;
+      if (fn_idx == fns.size()) {
+        ++data_idx;
+        fn_idx = 0;
+      }
+    }
   }
 
   std::size_t const n_threads = 1;
