@@ -45,8 +45,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // #define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
 
-#define MKN_GPU_ASSERT(ans) \
-  { gpuAssert((ans), __FILE__, __LINE__); }
+#define MKN_GPU_ASSERT(ans)               \
+  {                                       \
+    gpuAssert((ans), __FILE__, __LINE__); \
+  }
 inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
   if (code != hipSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
@@ -107,54 +109,35 @@ struct Stream {
 //
 
 struct StreamEvent {
-  StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() { clear(); }
-
-  StreamEvent(StreamEvent&& that) : stream{that.stream}, start{that.start}, stop{that.stop} {
-    that.start = nullptr;
-    that.stop = nullptr;
-  }
-
+  //
+  StreamEvent(Stream& stream_) : stream{stream_} {}
+  StreamEvent(StreamEvent&& that) = default;
   StreamEvent(StreamEvent const&) = delete;
   StreamEvent& operator=(StreamEvent const&) = delete;
 
-  auto& operator()() { return stop; };
-  auto& record() {
-    if (stage == 0) {
-      MKN_GPU_ASSERT(result = hipEventRecord(start, stream()));
-      ++stage;
-    } else {
-      MKN_GPU_ASSERT(result = hipEventRecord(stop, stream()));
-      ++stage;
-    }
-    return *this;
-  }
-  auto& wait() {
-    if (stage == 0) {
-      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), start));
-    } else {
-      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), stop));
-    }
+  auto& operator()(std::function<void()> fn = {}) {
+    fin = 0;
+    _fn = fn;
+    MKN_GPU_ASSERT(hipStreamAddCallback(stream(), StreamEvent::Callback, this, 0));
     return *this;
   }
 
-  void clear() {
-    if (start) MKN_GPU_ASSERT(result = hipEventDestroy(start));
-    if (stop) MKN_GPU_ASSERT(result = hipEventDestroy(stop));
+  static void Callback(hipStream_t /*stream*/, hipError_t /*status*/, void* ptr) {
+    auto& self = *reinterpret_cast<StreamEvent*>(ptr);
+    self._fn();
+    self._fn = [] {};
+    self.fin = 1;
   }
-  bool finished() const { return stage == 2 and hipEventQuery(stop) == hipSuccess; }
-  void reset() {
-    clear();
-    MKN_GPU_ASSERT(result = hipEventCreate(&start));
-    MKN_GPU_ASSERT(result = hipEventCreate(&stop));
-    stage = 0;
-  }
+
+  bool finished() const { return fin; }
 
   Stream& stream;
   hipError_t result;
-  hipEvent_t start = nullptr, stop = nullptr;
-  std::uint16_t stage = 0;
+  std::function<void()> _fn;
+  bool fin = 0;
 };
+
+//
 
 // https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
 template <typename T>
@@ -203,8 +186,9 @@ void alloc_host(T*& p, Size size) {
 
 template <typename T, typename Size>
 void alloc_managed(T*& p, Size size) {
+  auto const bytes = size * sizeof(T);
   KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
-  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, size * sizeof(T)));
+  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, bytes));
 }
 
 void inline destroy(void* p) {

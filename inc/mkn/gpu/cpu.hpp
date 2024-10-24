@@ -97,7 +97,6 @@ struct Stream {
   ~Stream() {}
 
   auto& operator()() { return stream; };
-
   void sync() {}
 
   std::size_t stream = 0;
@@ -107,18 +106,16 @@ struct StreamEvent {
   StreamEvent(Stream&) {}
   ~StreamEvent() {}
 
-  auto& operator()() { return event; };
-  auto& record() {
-    ++stage;
+  auto& operator()(std::function<void()> fn = {}) {
+    fn();
     return *this;
   }
-  auto& wait() { return *this; }
-  bool finished() const { return stage == 2; }
-  void reset() { stage = 0; }
+
+  bool finished() const { return fin; }
 
   Stream stream;
-  std::size_t event = 0;
-  std::uint16_t stage = 0;
+  bool fin = 1;
+  std::function<void()> _fn;
 };
 
 template <typename T>
