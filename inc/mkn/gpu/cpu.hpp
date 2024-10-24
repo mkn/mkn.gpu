@@ -106,11 +106,16 @@ struct StreamEvent {
   StreamEvent(Stream&) {}
   ~StreamEvent() {}
 
-  auto& operator()(std::function<void()> /*fn*/ = {}) { return *this; }
+  auto& operator()(std::function<void()> fn = {}) {
+    fn();
+    return *this;
+  }
+
   bool finished() const { return fin; }
 
   Stream stream;
   bool fin = 1;
+  std::function<void()> _fn;
 };
 
 template <typename T>

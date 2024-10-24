@@ -1,5 +1,6 @@
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/assert.hpp"
 
 static constexpr uint32_t NUM = 5;
 
@@ -28,24 +29,24 @@ std::uint32_t test_does_not_construct_on_resize() {
   KLOG(INF);
   alloced = 0;
   ManagedMemory<S> mem{NUM};
-  assert(mem.size() == 5 && "wrong size");
+  mkn::kul::abort_if_not(mem.size() == 5 && "wrong size");
   resize(mem, NUM + NUM);
-  assert(mem.size() == 10 && "wrong size");
+  mkn::kul::abort_if_not(mem.size() == 10 && "wrong size");
 
   auto cap = mem.capacity();
 
   KLOG(INF) << mem.capacity();
   as_super(mem).emplace_back();  // does construct
   KLOG(INF) << mem.capacity();
-  assert(mem.capacity() != cap && "capacity bad!");
-  assert(mem[10].s == 1 && "bad construct!");
+  mkn::kul::abort_if_not(mem.capacity() != cap && "capacity bad!");
+  mkn::kul::abort_if_not(mem[10].s == 1 && "bad construct!");
 
   cap = mem.capacity();
 
   resize(mem, NUM * 5);
-  assert(mem.size() == 25 && "wrong size");
-  assert(mem.capacity() != cap && "capacity bad!");
-  assert(mem[10].s == 1 && "bad copy!");
+  mkn::kul::abort_if_not(mem.size() == 25 && "wrong size");
+  mkn::kul::abort_if_not(mem.capacity() != cap && "capacity bad!");
+  mkn::kul::abort_if_not(mem[10].s == 1 && "bad copy!");
 
   KLOG(INF) << mem[10].s;
   KLOG(INF) << mem[11].s;
