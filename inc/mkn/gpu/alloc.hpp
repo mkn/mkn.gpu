@@ -104,8 +104,8 @@ std::vector<T, MknGPUAllocator<T, align>>& as_super(std::vector<T, ManagedAlloca
   return *reinterpret_cast<std::vector<T, MknGPUAllocator<T, align>>*>(&v);
 }
 
-template <typename T, typename Size>
-void copy(T* dst, T* src, Size size) {
+template <typename T0, typename T1, typename Size>
+void copy(T0* dst, T1* src, Size const size) {
   assert(dst and src);
 
   Pointer src_p{src};

@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <barrier>
 #include <cassert>
 #include <cstdint>
-#include <algorithm>
+#include <fstream>
 #include <stdexcept>
 
 #include "mkn/gpu.hpp"
@@ -59,7 +59,7 @@ struct StreamFunction {
   StreamFunctionMode mode;
 };
 
-std::size_t group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
+std::size_t inline group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
   return ((i - (i % gs)) / gs);
 }
 
@@ -83,7 +83,6 @@ struct StreamGroupFunction : public StreamFunction<Strat> {
   virtual ~StreamGroupFunction() {}
 
   std::size_t group_idx(std::size_t const& i) const { return group_idx_modulo(group_size, i); }
-
   std::size_t const group_size = 0;
 };
 
@@ -478,12 +477,13 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return *this;
   }
 
-  void print_times() const {
+  template <typename SS>  // use div = 1e6 for milliseconds
+  void _print_times(SS&& ss, bool const nl = false, double const div = 1) {
     std::size_t fn_idx = 0, data_idx = 0;
 
     for (auto const& t : super().times) {
-      KOUT(NON) << data_idx << " " << fn_idx << " " << (t.time() / 1e6);
-
+      ss << data_idx << " " << fn_idx << " " << (t.time() / 1);
+      if (nl) ss << std::endl;
       ++fn_idx;
       if (fn_idx == fns.size()) {
         ++data_idx;
@@ -491,6 +491,9 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
       }
     }
   }
+
+  void print_times() const { _print_times(KOUT(NON)); }
+  void dump_times(std::string const& filename) { _print_times(std::ofstream{filename}, 1); }
 
   std::size_t const n_threads = 1;
   std::size_t const device_id = 0;
