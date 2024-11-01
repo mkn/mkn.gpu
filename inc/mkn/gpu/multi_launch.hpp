@@ -44,6 +44,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu.hpp"
 #include "mkn/kul/time.hpp"
 
+namespace mkn::gpu::detail {
+template <typename Type>
+auto& deref(Type&& type) {
+  if constexpr (std::is_pointer_v<std::decay_t<Type>>)
+    return *type;
+  else
+    return type;
+}
+}  // namespace mkn::gpu::detail
+
 namespace mkn::gpu {
 
 enum class StreamFunctionMode { HOST_WAIT = 0, DEVICE_WAIT, BARRIER };
@@ -95,7 +105,7 @@ struct StreamDeviceFunction : StreamFunction<Strat> {
       : Super{strat, StreamFunctionMode::DEVICE_WAIT}, fn{fn_} {}
   void run(std::uint32_t const i) override {
     //
-    mkn::gpu::GDLauncher<false>{strat.datas[i].size()}.stream(
+    mkn::gpu::GDLauncher<false>{detail::deref(strat.datas[i]).size()}.stream(
         strat.streams[i], [=, fn = fn] __device__() mutable { fn(i); });
   }
 
@@ -329,6 +339,37 @@ struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
   void run(std::uint32_t const i) override {
     if (i % Super::group_size == gid) fn(i);
     strat.status[i] = SFS::WAIT;  // done
+  }
+
+  Fn fn;
+  std::size_t const gid;
+};
+
+template <typename Strat, typename Fn, bool is = true>
+struct StreamDeviceGroupIndexFunction : StreamGroupFunction<Strat> {
+  using Super = StreamGroupFunction<Strat>;
+  using Super::strat;
+
+  std::string_view constexpr static MOD_GROUP_ERROR =
+      "mkn.gpu error: StreamDeviceGroupIndexFunction Group size must be a divisor of datas";
+
+  StreamDeviceGroupIndexFunction(std::size_t const& gs, std::size_t const& gid_, Strat& strat,
+                                 Fn&& fn_)
+      : Super{gs, strat, StreamFunctionMode::DEVICE_WAIT}, fn{fn_}, gid{gid_} {}
+
+  void run(std::uint32_t const i) override {
+    std::size_t const size = detail::deref(strat.datas[i]).size();
+
+    if constexpr (is) {
+      if (i % Super::group_size == gid and size)
+        mkn::gpu::GDLauncher<false>{size}.stream(strat.streams[i],
+                                                 [=, fn = fn] __device__() mutable { fn(i); });
+
+    } else {
+      if (i % Super::group_size != gid and size)
+        mkn::gpu::GDLauncher<false>{size}.stream(strat.streams[i],
+                                                 [=, fn = fn] __device__() mutable { fn(i); });
+    }
   }
 
   Fn fn;
