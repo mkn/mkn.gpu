@@ -518,13 +518,13 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return *this;
   }
 
-  template <typename SS>  // use div = 1e6 for milliseconds
-  void _print_times(SS&& ss, bool const nl = false, double const div = 1) {
+  template <bool nl = false, typename SS>  // use div = 1e6 for milliseconds
+  void _print_times(SS&& ss, double const div = 1) const {
     std::size_t fn_idx = 0, data_idx = 0;
 
     for (auto const& t : super().times) {
-      ss << data_idx << " " << fn_idx << " " << (t.time() / 1);
-      if (nl) ss << std::endl;
+      ss << data_idx << " " << fn_idx << " " << (t.time() / div);
+      if constexpr (nl) ss << std::endl;
       ++fn_idx;
       if (fn_idx == fns.size()) {
         ++data_idx;
@@ -533,8 +533,10 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     }
   }
 
-  void print_times() const { _print_times(KOUT(NON)); }
-  void dump_times(std::string const& filename) { _print_times(std::ofstream{filename}, 1); }
+  void print_times(double const div = 1) const { _print_times(KOUT(NON), div); }
+  void dump_times(std::string const& filename, double const div = 1) const {
+    _print_times<1>(std::ofstream{filename}, div);
+  }
 
   std::size_t const n_threads = 1;
   std::size_t const device_id = 0;
