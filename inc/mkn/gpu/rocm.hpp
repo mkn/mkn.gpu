@@ -320,6 +320,11 @@ __global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
   if (auto i = mkn::gpu::hip::idx(); i < s) f(args...);
 }
 
+template <typename F, typename... Args>
+__global__ static void global_d_kernel(F f, Args... args) {
+  f(args...);
+}
+
 #include "launchers.hpp"
 
 template <typename T, typename V>

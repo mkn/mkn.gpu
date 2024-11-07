@@ -62,4 +62,37 @@ struct GDLauncher : public GLauncher {
   }
 };
 
+
+template <bool _sync = false, bool _coop = false>
+struct DLauncher : public Launcher {
+  DLauncher(size_t dev = 0) : Launcher{{}, {}} {}
+
+  template <typename F, typename... Args>
+  auto operator()(F&& f, Args&&... args) {
+    _launch(s, f,
+            as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
+             args...);
+  }
+
+  template <typename F, typename... Args>
+  auto stream(Stream& s, F&& f, Args&&... args) {
+    _launch(s.stream, f,
+            as_values(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()),
+             args...);
+  }
+
+ protected:
+  template <std::size_t... I, typename... Args>
+  auto as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
+    using T = std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*;
+    return T{nullptr};
+  }
+
+  template <typename S, typename F, typename... PArgs, typename... Args>
+  void _launch(S& _s, F& f, std::tuple<PArgs&...>*, Args&&... args) {
+    MKN_GPU_NS::launch<_sync, _coop>(&global_d_kernel<F, PArgs...>, g, b, ds, _s, f, args...);
+  }
+};
+
+
 #endif /* _MKN_GPU_LAUNCHERS_HPP_ */
