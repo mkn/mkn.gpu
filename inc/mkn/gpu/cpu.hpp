@@ -83,14 +83,9 @@ struct dim3 {
   std::size_t x = 1, y = 1, z = 1;
 };
 
-void setLimitMallocHeapSize(std::size_t const& /*bytes*/) {} /*noop*/
+void inline setLimitMallocHeapSize(std::size_t const& /*bytes*/) {} /*noop*/
 
-void setDevice(std::size_t const& /*dev*/) {} /*noop*/
-
-auto supportsCooperativeLaunch(int const /*dev*/ = 0) {
-  int supportsCoopLaunch = 0;
-  return supportsCoopLaunch;
-}
+void inline setDevice(std::size_t const& /*dev*/) {} /*noop*/
 
 struct Stream {
   Stream() {}
@@ -217,7 +212,7 @@ namespace detail {
 static thread_local std::size_t idx = 0;
 }
 
-template <bool _sync = true, bool _coop = false, typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
@@ -261,7 +256,7 @@ struct GLauncher : public Launcher {
   std::size_t count;
 };
 
-void prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
+void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
 }  // namespace MKN_GPU_NS
 
@@ -281,9 +276,12 @@ static void global_gd_kernel(F& f, std::size_t s, Args... args) {
   if (auto i = mkn::gpu::cpu::idx(); i < s) f(args...);
 }
 
-#include "launchers.hpp"
+template <typename F, typename... Args>
+static void global_d_kernel(F& f, Args... args) {
+  f(args...);
+}
 
-void grid_sync() {}
+#include "launchers.hpp"
 
 } /* namespace MKN_GPU_NS */
 

@@ -1,10 +1,6 @@
 #ifndef _MKN_GPU_DEFINES_HPP_
 #define _MKN_GPU_DEFINES_HPP_
 
-#if !defined(MKN_GPU_FN_PER_NS)
-#define MKN_GPU_FN_PER_NS 0
-#endif
-
 #if !defined(MKN_GPU_ROCM) and __has_include("hip/hip_runtime.h")
 #define MKN_GPU_ROCM 1
 #endif
@@ -19,16 +15,25 @@
 #define MKN_GPU_CUDA 0
 #endif
 
-#if MKN_GPU_CUDA == 1 && MKN_GPU_ROCM == 1 && MKN_GPU_FN_PER_NS == 0
+#if MKN_GPU_CUDA == 1 && MKN_GPU_ROCM == 1 && !defined(MKN_GPU_FN_PER_NS)
 #define MKN_GPU_FN_PER_NS 1
+#endif
+
+#if !defined(MKN_GPU_FN_PER_NS)
+#define MKN_GPU_FN_PER_NS 0
 #endif
 
 #if MKN_GPU_ROCM == 1
 #include "mkn/gpu/rocm.hpp"
 #endif
 
-#if MKN_GPU_CUDA
+#if MKN_GPU_CUDA == 1
 #include "mkn/gpu/cuda.hpp"
+#endif
+
+#if MKN_GPU_CUDA == 0 && MKN_GPU_ROCM == 0 && !defined(MKN_GPU_CPU)
+#pragma message("mkn.gpu error: No accelerator found, defaulting to CPU IMP")
+#define MKN_GPU_CPU 1
 #endif
 
 #if MKN_GPU_FN_PER_NS == 1 || MKN_GPU_CPU == 1

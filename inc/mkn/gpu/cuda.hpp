@@ -39,10 +39,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
 
-#include "mkn/gpu/cli.hpp"
-#include <cuda_runtime.h>
-#include <cooperative_groups.h>
 #include "mkn/gpu/def.hpp"
+#include "mkn/gpu/cli.hpp"
+
+#include <cuda_runtime.h>
 
 //
 
@@ -86,17 +86,11 @@ __device__ SIZE block_idx_x() {
 
 namespace MKN_GPU_NS {
 
-void setLimitMallocHeapSize(std::size_t const& bytes) {
+void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitMallocHeapSize, bytes));
 }
 
-void setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
-
-auto supportsCooperativeLaunch(int const dev = 0) {
-  int supportsCoopLaunch = 0;
-  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&supportsCoopLaunch, cudaDevAttrCooperativeLaunch, dev));
-  return supportsCoopLaunch;
-}
+void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
 
 struct Stream {
   Stream() { MKN_GPU_ASSERT(result = cudaStreamCreate(&stream)); }
@@ -249,19 +243,13 @@ void inline sync(cudaStream_t stream) { MKN_GPU_ASSERT(cudaStreamSynchronize(str
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
-template <bool _sync = true, bool _coop = false, typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) {
-        if constexpr (_coop) {
-          auto address_of = [](auto& a) { return (void*)&a; };
-          void* kernelArgs[] = {(address_of(params), ...)};
-          cudaLaunchCooperativeKernel((void*)f, g, b, kernelArgs, ds);
-        } else {
-          f<<<g, b, ds, s>>>(params...);
-        }
+        f<<<g, b, ds, s>>>(params...);
         MKN_GPU_ASSERT(cudaGetLastError());
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
@@ -316,6 +304,11 @@ __global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
   if (auto i = mkn::gpu::cuda::idx(); i < s) f(args...);
 }
 
+template <typename F, typename... Args>
+__global__ static void global_d_kernel(F f, Args... args) {
+  f(args...);
+}
+
 #include "launchers.hpp"
 
 template <typename T, typename V>
@@ -358,14 +351,8 @@ void print_gpu_mem_used() {
          total_t, total_m, used_m);
 }
 
-__device__ void grid_sync() {
-  namespace cg = cooperative_groups;
-  cg::grid_group grid = cg::this_grid();
-  assert(grid.is_valid());
-  grid.sync();
-}
-
 }  // namespace MKN_GPU_NS
 
 #undef MKN_GPU_ASSERT
+
 #endif /* _MKN_GPU_CUDA_HPP_ */
