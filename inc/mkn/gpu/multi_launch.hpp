@@ -69,9 +69,7 @@ struct StreamFunction {
   StreamFunctionMode mode;
 };
 
-std::size_t inline group_idx_modulo(std::size_t const& gs, std::size_t const& i) {
-  return ((i - (i % gs)) / gs);
-}
+std::size_t inline group_idx_modulo(std::size_t const& gs, std::size_t const& i) { return i / gs; }
 
 struct Timer {
   auto time() const {
@@ -299,7 +297,8 @@ struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
       "mkn.gpu error: StreamHostGroupMutexFunction Group size must be a divisor of datas";
 
   static auto make_mutices(Strat const& strat, std::size_t const& group_size) {
-    if (strat.datas.size() % group_size > 0) throw std::runtime_error(std::string{MOD_GROUP_ERROR});
+    if (group_size == 0 || strat.datas.size() % group_size > 0)
+      throw std::runtime_error(std::string{MOD_GROUP_ERROR});
     std::uint16_t const groups = strat.datas.size() / group_size;
     return std::vector<std::mutex>{groups};
   }
@@ -334,7 +333,9 @@ struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
 
   StreamHostGroupIndexFunction(std::size_t const& gs, std::size_t const& gid_, Strat& strat,
                                Fn&& fn_)
-      : Super{gs, strat, StreamFunctionMode::HOST_WAIT}, fn{fn_}, gid{gid_} {}
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT}, fn{fn_}, gid{gid_} {
+    if (gs == 0) throw std::invalid_argument("Group size cannot be zero");
+  }
 
   void run(std::uint32_t const i) override {
     if (i % Super::group_size == gid) fn(i);
