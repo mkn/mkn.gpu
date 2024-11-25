@@ -79,7 +79,9 @@ class NoConstructAllocator : public MknGPUAllocator<T, alignment> {
   };
 
   template <typename U, typename... Args>
-  void construct(U* /*ptr*/, Args&&... /*args*/) {}  // nothing
+  void construct(U* ptr, Args&&... args) {
+    ::new ((void*)ptr) U(std::forward<Args>(args)...);
+  }
   template <typename U>
   void construct(U* /*ptr*/) noexcept(std::is_nothrow_default_constructible<U>::value) {}
 };
