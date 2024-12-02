@@ -137,7 +137,7 @@ auto& reserve(std::vector<T, NoConstructAllocator<T, align>>& v, std::size_t con
     v.reserve(s);
     return v;
   }
-  std::vector<T, NoConstructAllocator<T, align>> cpy{NoConstructAllocator<T, align>{}};
+  std::vector<T, NoConstructAllocator<T, align>> cpy(NoConstructAllocator<T, align>{});
   cpy.reserve(s);
   cpy.resize(v.size());
   if (mem_copy and v.size()) copy(cpy.data(), v.data(), v.size());
@@ -152,7 +152,7 @@ auto& resize(std::vector<T, NoConstructAllocator<T, align>>& v, std::size_t cons
     v.resize(s);
     return v;
   }
-  std::vector<T, NoConstructAllocator<T, align>> cpy{NoConstructAllocator<T, align>{}};
+  std::vector<T, NoConstructAllocator<T, align>> cpy(NoConstructAllocator<T, align>{});
   cpy.resize(s);
   if (mem_copy and v.size()) copy(cpy.data(), v.data(), v.size());
   v = std::move(cpy);
