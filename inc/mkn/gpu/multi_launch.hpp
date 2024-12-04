@@ -526,7 +526,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     std::size_t fn_idx = 0, data_idx = 0;
 
     for (auto const& t : super().times) {
-      ss << data_idx << " " << fn_idx << " " << (t.time() / div);
+      ss << data_idx << " " << fn_idx << " " << static_cast<std::size_t>(t.time() / div);
       if constexpr (nl) ss << std::endl;
       ++fn_idx;
       if (fn_idx == fns.size()) {
