@@ -79,7 +79,9 @@ class NoConstructAllocator : public MknGPUAllocator<T, alignment> {
   };
 
   template <typename U, typename... Args>
-  void construct(U* /*ptr*/, Args&&... /*args*/) {}  // nothing
+  void construct(U* ptr, Args&&... args) {
+    ::new ((void*)ptr) U(std::forward<Args>(args)...);
+  }
   template <typename U>
   void construct(U* /*ptr*/) noexcept(std::is_nothrow_default_constructible<U>::value) {}
 };
@@ -104,8 +106,8 @@ std::vector<T, MknGPUAllocator<T, align>>& as_super(std::vector<T, ManagedAlloca
   return *reinterpret_cast<std::vector<T, MknGPUAllocator<T, align>>*>(&v);
 }
 
-template <typename T, typename Size>
-void copy(T* dst, T* src, Size size) {
+template <typename T0, typename T1, typename Size>
+void copy(T0* dst, T1* src, Size const size) {
   assert(dst and src);
 
   Pointer src_p{src};
@@ -135,7 +137,7 @@ auto& reserve(std::vector<T, NoConstructAllocator<T, align>>& v, std::size_t con
     v.reserve(s);
     return v;
   }
-  std::vector<T, NoConstructAllocator<T, align>> cpy{NoConstructAllocator<T, align>{}};
+  std::vector<T, NoConstructAllocator<T, align>> cpy(NoConstructAllocator<T, align>{});
   cpy.reserve(s);
   cpy.resize(v.size());
   if (mem_copy and v.size()) copy(cpy.data(), v.data(), v.size());
@@ -150,7 +152,7 @@ auto& resize(std::vector<T, NoConstructAllocator<T, align>>& v, std::size_t cons
     v.resize(s);
     return v;
   }
-  std::vector<T, NoConstructAllocator<T, align>> cpy{NoConstructAllocator<T, align>{}};
+  std::vector<T, NoConstructAllocator<T, align>> cpy(NoConstructAllocator<T, align>{});
   cpy.resize(s);
   if (mem_copy and v.size()) copy(cpy.data(), v.data(), v.size());
   v = std::move(cpy);

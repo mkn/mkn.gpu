@@ -37,16 +37,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
 
-#include "mkn/gpu/cli.hpp"
-#include "hip/hip_runtime.h"
 #include "mkn/gpu/def.hpp"
+#include "mkn/gpu/cli.hpp"
 
-#include "hip/hip_cooperative_groups.h"
+#include "hip/hip_runtime.h"
 
-// #define MKN_GPU_ASSERT(x) (KASSERT((x) == hipSuccess))
-
-#define MKN_GPU_ASSERT(ans) \
-  { gpuAssert((ans), __FILE__, __LINE__); }
+#define MKN_GPU_ASSERT(ans)               \
+  {                                       \
+    gpuAssert((ans), __FILE__, __LINE__); \
+  }
 inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
   if (code != hipSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
@@ -79,18 +78,11 @@ __device__ SIZE idx() {
 
 namespace MKN_GPU_NS {
 
-void setLimitMallocHeapSize(std::size_t const& bytes) {
+void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitMallocHeapSize, bytes));
 }
 
-void setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(hipSetDevice(dev)); }
-
-auto supportsCooperativeLaunch(int const dev = 0) {
-  int supportsCoopLaunch = 0;
-  MKN_GPU_ASSERT(
-      hipDeviceGetAttribute(&supportsCoopLaunch, hipDeviceAttributeCooperativeLaunch, dev));
-  return supportsCoopLaunch;
-}
+void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(hipSetDevice(dev)); }
 
 struct Stream {
   Stream() { MKN_GPU_ASSERT(result = hipStreamCreate(&stream)); }
@@ -107,54 +99,35 @@ struct Stream {
 //
 
 struct StreamEvent {
-  StreamEvent(Stream& stream_) : stream{stream_} { reset(); }
-  ~StreamEvent() { clear(); }
-
-  StreamEvent(StreamEvent&& that) : stream{that.stream}, start{that.start}, stop{that.stop} {
-    that.start = nullptr;
-    that.stop = nullptr;
-  }
-
+  //
+  StreamEvent(Stream& stream_) : stream{stream_} {}
+  StreamEvent(StreamEvent&& that) = default;
   StreamEvent(StreamEvent const&) = delete;
   StreamEvent& operator=(StreamEvent const&) = delete;
 
-  auto& operator()() { return stop; };
-  auto& record() {
-    if (stage == 0) {
-      MKN_GPU_ASSERT(result = hipEventRecord(start, stream()));
-      ++stage;
-    } else {
-      MKN_GPU_ASSERT(result = hipEventRecord(stop, stream()));
-      ++stage;
-    }
-    return *this;
-  }
-  auto& wait() {
-    if (stage == 0) {
-      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), start));
-    } else {
-      MKN_GPU_ASSERT(result = hipStreamWaitEvent(stream(), stop));
-    }
+  auto& operator()(std::function<void()> fn = {}) {
+    fin = 0;
+    _fn = fn;
+    MKN_GPU_ASSERT(hipStreamAddCallback(stream(), StreamEvent::Callback, this, 0));
     return *this;
   }
 
-  void clear() {
-    if (start) MKN_GPU_ASSERT(result = hipEventDestroy(start));
-    if (stop) MKN_GPU_ASSERT(result = hipEventDestroy(stop));
+  static void Callback(hipStream_t /*stream*/, hipError_t /*status*/, void* ptr) {
+    auto& self = *reinterpret_cast<StreamEvent*>(ptr);
+    self._fn();
+    self._fn = [] {};
+    self.fin = 1;
   }
-  bool finished() const { return stage == 2 and hipEventQuery(stop) == hipSuccess; }
-  void reset() {
-    clear();
-    MKN_GPU_ASSERT(result = hipEventCreate(&start));
-    MKN_GPU_ASSERT(result = hipEventCreate(&stop));
-    stage = 0;
-  }
+
+  bool finished() const { return fin; }
 
   Stream& stream;
   hipError_t result;
-  hipEvent_t start = nullptr, stop = nullptr;
-  std::uint16_t stage = 0;
+  std::function<void()> _fn;
+  bool fin = 0;
 };
+
+//
 
 // https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
 template <typename T>
@@ -203,8 +176,9 @@ void alloc_host(T*& p, Size size) {
 
 template <typename T, typename Size>
 void alloc_managed(T*& p, Size size) {
+  auto const bytes = size * sizeof(T);
   KLOG(TRC) << "GPU alloced: " << size * sizeof(T);
-  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, size * sizeof(T)));
+  MKN_GPU_ASSERT(hipMallocManaged((void**)&p, bytes));
 }
 
 void inline destroy(void* p) {
@@ -275,19 +249,13 @@ void inline sync(hipStream_t stream) { MKN_GPU_ASSERT(hipStreamSynchronize(strea
 #include "mkn/gpu/alloc.hpp"
 #include "mkn/gpu/device.hpp"
 
-template <bool _sync = true, bool _coop = false, typename F, typename... Args>
+template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, hipStream_t& s, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
   KLOG(TRC) << N;
   std::apply(
       [&](auto&&... params) {
-        if constexpr (_coop) {
-          auto address_of = [](auto& a) { return (void*)&a; };
-          void* kernelArgs[] = {(address_of(params), ...)};
-          MKN_GPU_ASSERT(hipLaunchCooperativeKernel<F>(f, g, b, kernelArgs, ds, s));
-        } else {
-          hipLaunchKernelGGL(f, g, b, ds, s, params...);
-        }
+        hipLaunchKernelGGL(f, g, b, ds, s, params...);
         MKN_GPU_ASSERT(hipGetLastError());
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
@@ -336,6 +304,11 @@ __global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
   if (auto i = mkn::gpu::hip::idx(); i < s) f(args...);
 }
 
+template <typename F, typename... Args>
+__global__ static void global_d_kernel(F f, Args... args) {
+  f(args...);
+}
+
 #include "launchers.hpp"
 
 template <typename T, typename V>
@@ -378,14 +351,8 @@ void print_gpu_mem_used() {
          total_t, total_m, used_m);
 }
 
-__device__ void grid_sync() {
-  namespace cg = cooperative_groups;
-  cg::grid_group grid = cg::this_grid();
-  assert(grid.is_valid());
-  grid.sync();
-}
-
 }  // namespace MKN_GPU_NS
 
 #undef MKN_GPU_ASSERT
+
 #endif /* _MKN_GPU_ROCM_HPP_ */
