@@ -6,7 +6,7 @@ static constexpr uint32_t NUM = WIDTH * HEIGHT;
 static constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
 
 template <typename T>
-__global__ void vectoradd(T* a, const T* b, const T* c) {
+__global__ void vectoradd(T* a, T const* b, T const* c) {
   auto i = mkn::gpu::cpu::idx();
   a[i] = b[i] + c[i];
 }

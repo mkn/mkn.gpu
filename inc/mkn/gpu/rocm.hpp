@@ -46,7 +46,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   {                                       \
     gpuAssert((ans), __FILE__, __LINE__); \
   }
-inline void gpuAssert(hipError_t code, const char* file, int line, bool abort = true) {
+inline void gpuAssert(hipError_t code, char const* file, int line, bool abort = true) {
   if (code != hipSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", hipGetErrorString(code), file, line);
     if (abort) std::abort();

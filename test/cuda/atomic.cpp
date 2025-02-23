@@ -16,7 +16,7 @@ struct S {
 }  // namespace NS0
 
 template <typename T>
-__global__ void vectoradd(T* a, const T* b, const T* c) {
+__global__ void vectoradd(T* a, T const* b, T const* c) {
   auto i = mkn::gpu::cuda::idx();
 
   NS0::S<T>{a[i]} += b[i] + c[i];

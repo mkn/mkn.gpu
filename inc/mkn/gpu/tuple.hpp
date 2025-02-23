@@ -121,7 +121,7 @@ struct SpanSet : ASpanSet<T, SIZE, GPU> {
       curr_pos += sv->sizes[curr_ptr++];
       return *this;
     }
-    bool operator!=(const iterator& /*other*/) const __device__ {
+    bool operator!=(iterator const& /*other*/) const __device__ {
       return curr_ptr != sv->sizes.size();
     }
     Span<T, SIZE> operator*() const {

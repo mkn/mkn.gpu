@@ -2,6 +2,7 @@
 #include <thread>
 #include <algorithm>
 
+#include "mkn/gpu.hpp"
 #include "mkn/kul/dbg.hpp"
 #include "mkn/kul/time.hpp"
 #include "mkn/gpu/multi_launch.hpp"
@@ -179,7 +180,7 @@ std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; })();
 
   std::size_t val = 5;
-  for (std::size_t i = 0; i < vecs.size(); i++) {
+  for (std::size_t i = 0; i < vecs.size(); ++i) {
     if (i % group_size == 0) {
       for (auto const& e : vecs[i])
         if (e != val + 1) return 1;
@@ -193,6 +194,42 @@ std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
   return 0;
 }
 
+std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2) {
+  using T = double;
+  KUL_DBG_FUNC_ENTER;
+
+  std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
+  for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
+
+  ManagedVector<T*> datas(C);
+  for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
+  auto views = datas.data();
+
+  ThreadedStreamLauncher launcher{vecs, nthreads};
+  launcher
+      .host([&](auto i) mutable {
+        launcher.streams[i].sync();  // wait for first kernel per stream
+        for (auto& e : vecs[i]) e += 1;
+      })
+      .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; });
+
+  for (std::size_t i = 0; i < datas.size(); ++i) {
+    mkn::gpu::GDLauncher<false>{NUM}.stream(
+        launcher.streams[i], [=, idx = i] __device__() { views[idx][mkn::gpu::idx()] += 1; });
+  }
+
+  launcher();
+
+  std::size_t val = 5;
+  for (std::size_t i = 0; i < vecs.size(); ++i) {
+    for (std::size_t j = 0; j < vecs[i].size(); ++j)
+      if (val != vecs[i][j]) return 1;
+    ++val;
+  };
+
+  return 0;
+}
+
 int main() {
   KOUT(NON) << __FILE__;
   return test()                              //
@@ -200,5 +237,5 @@ int main() {
          + test_threaded(6)                  //
          + test_threaded_group_barrier()     //
          + test_threaded_host_group_mutex()  //
-         + test_threaded_host_group_idx();
+         + test_threaded_host_group_idx() + test_threaded_detached_stream_fns();
 }
