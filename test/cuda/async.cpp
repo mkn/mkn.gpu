@@ -43,7 +43,7 @@ inline cudaError_t checkCuda(cudaError_t result) {
   return result;
 }
 
-__global__ void kernel(float *a, int offset) {
+__global__ void kernel(float* a, int offset) {
   int i = offset + threadIdx.x + blockIdx.x * blockDim.x;
   float x = (float)i;
   float s = sinf(x);
@@ -51,7 +51,7 @@ __global__ void kernel(float *a, int offset) {
   a[i] = a[i] + sqrtf(s * s + c * c);
 }
 
-float maxError(float *a, int n) {
+float maxError(float* a, int n) {
   float maxE = 0;
   for (int i = 0; i < n; i++) {
     float error = fabs(a[i] - 1.0f);
@@ -60,12 +60,12 @@ float maxError(float *a, int n) {
   return maxE;
 }
 
-int main(int argc, char **argv) {
-  const int blockSize = 256, nStreams = 4;
-  const int n = 4 * 1024 * blockSize * nStreams;
-  const int streamSize = n / nStreams;
-  const int streamBytes = streamSize * sizeof(float);
-  const int bytes = n * sizeof(float);
+int main(int argc, char** argv) {
+  int const blockSize = 256, nStreams = 4;
+  int const n = 4 * 1024 * blockSize * nStreams;
+  int const streamSize = n / nStreams;
+  int const streamBytes = streamSize * sizeof(float);
+  int const bytes = n * sizeof(float);
 
   int devId = 0;
   if (argc > 1) devId = atoi(argv[1]);
@@ -77,8 +77,8 @@ int main(int argc, char **argv) {
 
   // allocate pinned host memory and device memory
   float *a, *d_a;
-  checkCuda(cudaMallocHost((void **)&a, bytes));  // host pinned
-  checkCuda(cudaMalloc((void **)&d_a, bytes));    // device
+  checkCuda(cudaMallocHost((void**)&a, bytes));  // host pinned
+  checkCuda(cudaMalloc((void**)&d_a, bytes));    // device
 
   float ms;  // elapsed time in milliseconds
 

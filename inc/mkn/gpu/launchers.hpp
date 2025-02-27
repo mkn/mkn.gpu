@@ -48,7 +48,7 @@ auto as_values(Args&... args) {
 
 template <bool _sync = true>
 struct GDLauncher : public GLauncher {
-  GDLauncher(std::size_t s, size_t dev = 0) : GLauncher{s, dev} {}
+  GDLauncher(std::size_t const s, size_t const dev = 0) : GLauncher{s, dev} {}
 
   template <typename F, typename... Args>
   auto operator()(F&& f, Args&&... args) {
@@ -69,7 +69,7 @@ struct GDLauncher : public GLauncher {
 
 template <bool _sync = true>
 struct DLauncher : public Launcher {
-  DLauncher(size_t /*dev*/ = 0) : Launcher{{}, {}} {}
+  DLauncher(size_t const /*dev*/ = 0) : Launcher{{}, {}} {}
 
   template <typename F, typename... Args>
   auto operator()(F&& f, Args&&... args) {
