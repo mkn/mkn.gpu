@@ -340,7 +340,7 @@ void inline prinfo(size_t dev = 0) {
   KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
 }
 
-void print_gpu_mem_used() {
+void inline print_gpu_mem_used() {
   float free_m = 0, total_m = 0, used_m = 0;
   std::size_t free_t = 0, total_t = 0;
   MKN_GPU_ASSERT(hipMemGetInfo(&free_t, &total_t));
