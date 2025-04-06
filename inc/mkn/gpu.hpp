@@ -35,7 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace mkn::gpu {
 
-__device__ uint32_t idx() {
+__device__ uint32_t inline idx() {
 #if MKN_GPU_ROCM
   return mkn::gpu::hip::idx();
 
