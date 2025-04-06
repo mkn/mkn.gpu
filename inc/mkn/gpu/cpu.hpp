@@ -41,6 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu/cli.hpp"
 #include "mkn/gpu/def.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 
@@ -62,9 +63,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 // we need to exclude these for CPU only operations
+#define __shared__
 #define __device__
 #define __host__
 #define __global__
+#define __syncthreads(...)
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cpu
@@ -72,8 +75,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MKN_GPU_NS mkn::gpu
 #endif  // MKN_GPU_FN_PER_NS
 
-namespace MKN_GPU_NS {
+#if !defined(MKN_CPU_DO_NOT_DEFINE_DIM3)
+#define MKN_CPU_DO_NOT_DEFINE_DIM3 0
+#endif
 
+#if !defined(dim3) and !MKN_CPU_DO_NOT_DEFINE_DIM3
 struct dim3 {
   dim3() {}
   dim3(std::size_t x) : x{x} {}
@@ -82,6 +88,14 @@ struct dim3 {
 
   std::size_t x = 1, y = 1, z = 1;
 };
+
+dim3 static inline threadIdx, blockIdx;
+
+#endif  // MKN_CPU_DO_NOT_DEFINE_DIM3
+
+//
+
+namespace MKN_GPU_NS {
 
 void inline setLimitMallocHeapSize(std::size_t const& /*bytes*/) {} /*noop*/
 
@@ -256,6 +270,16 @@ struct GLauncher : public Launcher {
   std::size_t count;
 };
 
+template <typename Container, typename T>
+void fill(Container& c, size_t const size, T const val) {
+  std::fill(c.begin(), c.begin() + size, val);
+}
+
+template <typename Container, typename T>
+void fill(Container& c, T const val) {
+  fill(c, c.size(), val);
+}
+
 void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
 
 }  // namespace MKN_GPU_NS
@@ -263,7 +287,7 @@ void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; 
 namespace mkn::gpu::cpu {
 
 template <typename SIZE = std::uint32_t /*max 4294967296*/>
-SIZE idx() {
+SIZE inline idx() {
   return MKN_GPU_NS::detail::idx;
 }
 

@@ -41,3 +41,8 @@ Key             _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_MAX_
 Type            uint
 Default         100
 Description     Max wait time in milliseconds for polling active jobs for completion when no job is finished.
+
+Key             MKN_CPU_DO_NOT_DEFINE_DIM3
+Type            bool
+Default         false
+Description     if true, skips defining dim3 struct which is usually provided by gpu headers

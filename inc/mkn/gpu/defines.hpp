@@ -32,7 +32,6 @@
 #endif
 
 #if MKN_GPU_CUDA == 0 && MKN_GPU_ROCM == 0 && !defined(MKN_GPU_CPU)
-#pragma message("mkn.gpu error: No accelerator found, defaulting to CPU IMP")
 #define MKN_GPU_CPU 1
 #endif
 
