@@ -31,6 +31,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_MULTI_LAUNCH_HPP_
 #define _MKN_GPU_MULTI_LAUNCH_HPP_
 
+#include "mkn/gpu.hpp"
+#include "mkn/kul/log.hpp"
+#include "mkn/kul/time.hpp"
+
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -40,10 +44,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdint>
 #include <fstream>
 #include <stdexcept>
-
-#include "mkn/gpu.hpp"
-#include "mkn/kul/log.hpp"
-#include "mkn/kul/time.hpp"
 
 namespace mkn::gpu::detail {
 template <typename Type>

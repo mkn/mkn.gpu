@@ -69,7 +69,13 @@ struct GDLauncher : public GLauncher {
 
 template <bool _sync = true>
 struct DLauncher : public Launcher {
-  DLauncher(size_t const /*dev*/ = 0) : Launcher{{}, {}} {}
+  DLauncher() : Launcher{dim3{1}, dim3{warp_size}} {}
+  DLauncher(size_t const /*dev*/) : Launcher{{}, {}} {}
+
+  template <typename... Args>
+  DLauncher(Args&&... args)
+    requires(sizeof...(Args) > 0)
+      : Launcher{args...} {}
 
   template <typename F, typename... Args>
   auto operator()(F&& f, Args&&... args) {
