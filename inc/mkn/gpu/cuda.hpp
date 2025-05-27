@@ -32,15 +32,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_CUDA_HPP_
 #define _MKN_GPU_CUDA_HPP_
 
-#include <vector>
-
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
-#include "mkn/kul/assert.hpp"
 
 #include "mkn/gpu/def.hpp"
-#include "mkn/gpu/cli.hpp"
 
 #include <cuda_runtime.h>
 
@@ -76,8 +72,6 @@ __device__ SIZE block_idx_x() {
 
 }  // namespace mkn::gpu::cuda
 
-//
-
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cuda
 #else
@@ -85,6 +79,12 @@ __device__ SIZE block_idx_x() {
 #endif  // MKN_GPU_FN_PER_NS
 
 namespace MKN_GPU_NS {
+
+#ifdef _MKN_GPU_WARP_SIZE_
+static constexpr int warp_size = _MKN_GPU_WARP_SIZE_;
+#else
+static constexpr int warp_size = warpSize;
+#endif /*_MKN_GPU_WARP_SIZE_    */
 
 void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitMallocHeapSize, bytes));
@@ -310,6 +310,7 @@ __global__ static void global_d_kernel(F f, Args... args) {
 }
 
 #include "launchers.hpp"
+#include "devfunc.hpp"
 
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {

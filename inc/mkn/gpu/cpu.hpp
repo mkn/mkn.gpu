@@ -36,14 +36,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
-#include "mkn/kul/threads.hpp"
 
-#include "mkn/gpu/cli.hpp"
 #include "mkn/gpu/def.hpp"
 
-#include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <algorithm>
 
 #define MKN_GPU_ASSERT(x) (KASSERT((x)))
 
@@ -90,12 +88,14 @@ struct dim3 {
 };
 
 dim3 static inline threadIdx, blockIdx;
+static constexpr int warpSize = 1;
 
 #endif  // MKN_CPU_DO_NOT_DEFINE_DIM3
 
 //
 
 namespace MKN_GPU_NS {
+static constexpr int warp_size = warpSize;
 
 void inline setLimitMallocHeapSize(std::size_t const& /*bytes*/) {} /*noop*/
 
@@ -278,6 +278,11 @@ void fill(Container& c, size_t const size, T const val) {
 template <typename Container, typename T>
 void fill(Container& c, T const val) {
   fill(c, c.size(), val);
+}
+
+template <typename T>
+void zero(T* const t, std::size_t const size) {
+  std::fill(t, t + size, 0);
 }
 
 void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }

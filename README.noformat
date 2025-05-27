@@ -1,6 +1,6 @@
 mkn.gpu
 
-CUDA/HIP C++17 convenience wrappers
+CUDA/HIP C++20 convenience wrappers
 
 ======
 
@@ -26,6 +26,11 @@ Default         0
 Description     expose functions explicitly via
                    mkn::gpu::hip::*
                    mkn::gpu::cuda::*
+
+Key             _MKN_GPU_WARP_SIZE_
+Type            uint
+Default         use manufacturer provided (eg warpSize), usually 32
+Description     override use if defined
 
 Key             _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_
 Type            uint
