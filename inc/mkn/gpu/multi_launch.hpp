@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/time.hpp"
+#include "mkn/kul/except.hpp"
 
 #include <mutex>
 #include <chrono>
@@ -56,6 +57,13 @@ auto& deref(Type&& type) {
 }  // namespace mkn::gpu::detail
 
 namespace mkn::gpu {
+
+class StreamLauncherException : public kul::Exception {
+ public:
+  StreamLauncherException(char const* f, std::uint16_t const& l, std::string const& s)
+      : Exception{f, l, s} {}
+  StreamLauncherException(StreamLauncherException const& e) : Exception{e} {}
+};
 
 enum class StreamFunctionMode { HOST_WAIT = 0, DEVICE_WAIT, BARRIER };
 enum class StreamFunctionStatus { HOST_BUSY = 0, DEVICE_BUSY };
@@ -390,10 +398,10 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   constexpr static std::size_t wait_add_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_ADD_;
   constexpr static std::size_t wait_max_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_MAX_;
 
-  ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 1,
+  ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 0,
                          std::size_t const device = 0)
       : Super{datas}, n_threads{_n_threads}, device_id{device} {
-    thread_status.resize(n_threads, SFP::NEXT);
+    thread_status.resize(_n_threads + 1, SFP::NEXT);
     status.resize(datas.size(), SFS::FIRST);
   }
 
@@ -500,6 +508,9 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   }
 
   This& join(bool const work = true, bool const clear = false) {
+    if (n_threads == 0 and !work) {
+      KEXCEPT(StreamLauncherException, "no available threads, join must work");
+    }
     if (!started) start();
     if (joined) return *this;
     joined = true;
