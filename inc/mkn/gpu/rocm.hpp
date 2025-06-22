@@ -336,14 +336,24 @@ void fill(Container& c, T val) {
 void inline prinfo(size_t dev = 0) {
   hipDeviceProp_t devProp;
   MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
-  KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
-  KOUT(NON) << " agent name     " << devProp.name;
-  KOUT(NON) << " cores          " << devProp.multiProcessorCount;
-  KOUT(NON) << " threadsPCore   " << devProp.maxThreadsPerMultiProcessor;
-  KOUT(NON) << " TotalMem       " << (devProp.totalGlobalMem / 1000000) << " MB";
-  KOUT(NON) << " BlockMem       " << (devProp.sharedMemPerBlock / 1000) << " KB";
-  KOUT(NON) << " warpSize       " << devProp.warpSize;
-  KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
+  KOUT(NON) << " System version  " << devProp.major << "." << devProp.minor;
+  KOUT(NON) << " agent name      " << devProp.name;
+  KOUT(NON) << " cores           " << devProp.multiProcessorCount;
+  KOUT(NON) << " threadsPCore    " << devProp.maxThreadsPerMultiProcessor;
+  KOUT(NON) << " TotalMem        " << (devProp.totalGlobalMem / 1000000) << " MB";
+  KOUT(NON) << " BlockMem        " << (devProp.sharedMemPerBlock / 1000) << " KB";
+  KOUT(NON) << " device warpSize " << devProp.warpSize;
+  KOUT(NON) << " threadsPBlock   " << devProp.maxThreadsPerBlock;
+
+#ifdef _MKN_GPU_WARP_SIZE_
+  KOUT(NON) << " warpSize used   " << _MKN_GPU_WARP_SIZE_;
+#else
+  KOUT(NON) << " warpSize used   " << warp_size;
+  if (warp_size != devProp.warpSize) {
+    KOUT(NON) << " warpSize MISMATCH!!!  " << warp_size << " vs " << devProp.warpSize;
+    KOUT(NON) << " SEE mkn.gpu README for -D_MKN_GPU_WARP_SIZE_=###";
+  }
+#endif
 }
 
 void inline print_gpu_mem_used() {
