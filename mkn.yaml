@@ -10,18 +10,20 @@ profile:
 
 - name: rocm
   parent: headers
+  arg: -DMKN_GPU_ROCM=1
   test: test/any/(\w).cpp
         test/hip/(\w).cpp
 
 - name: cuda
   parent: headers
+  arg: -DMKN_GPU_CUDA=1
   test: test/any/(\w).cpp
         test/cuda/(\w).cpp
 
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers
-  arg: -DMKN_GPU_CPU
+  arg: -DMKN_GPU_CPU=1
   test: test/any/(\w).cpp
         test/cpu/(\w).cpp
 

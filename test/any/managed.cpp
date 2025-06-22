@@ -83,9 +83,28 @@ std::uint32_t test_lambda_ref_copy_capture_views() {
   return 0;
 }
 
+std::uint32_t test_zero() {
+  auto const size = 1000;  // not warp size divisible!
+  ManagedVector<float> mem0(size, 1);
+  ManagedVector<float> mem1(size, 2);
+
+  auto* view0 = mem0.data();
+  auto* view1 = mem1.data();
+
+  mkn::gpu::DLauncher()([=] __device__() {
+    mkn::gpu::zero(view0, size);
+    mkn::gpu::zero(view1, size);
+  });
+
+  for (std::uint32_t i = 0; i < size; ++i)
+    if (mem0[i] + mem1[i] != 0) return 1;
+
+  return 0;
+}
+
 int main() {
   KOUT(NON) << __FILE__;
-  return test() +                            //
+  return test() + test_zero() +              //
          test_guess() +                      //
          test_lambda_copy_capture_views() +  //
          test_lambda_ref_copy_capture_views();

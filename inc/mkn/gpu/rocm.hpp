@@ -37,8 +37,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/tuple.hpp"
 #include "mkn/kul/assert.hpp"
 
-#include "mkn/gpu/def.hpp"
 #include "mkn/gpu/cli.hpp"
+#include "mkn/gpu/def.hpp"
 
 #include "hip/hip_runtime.h"
 
@@ -68,8 +68,6 @@ __device__ SIZE idx() {
 
 }  // namespace mkn::gpu::hip
 
-//
-
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::hip
 #else
@@ -77,6 +75,12 @@ __device__ SIZE idx() {
 #endif  // MKN_GPU_FN_PER_NS
 
 namespace MKN_GPU_NS {
+
+#ifdef _MKN_GPU_WARP_SIZE_
+static constexpr int warp_size = _MKN_GPU_WARP_SIZE_;
+#else
+static constexpr int warp_size = warpSize;
+#endif /*_MKN_GPU_WARP_SIZE_    */
 
 void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitMallocHeapSize, bytes));
@@ -310,6 +314,7 @@ __global__ static void global_d_kernel(F f, Args... args) {
 }
 
 #include "launchers.hpp"
+#include "devfunc.hpp"
 
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {
@@ -330,14 +335,24 @@ void fill(Container& c, T val) {
 void inline prinfo(size_t dev = 0) {
   hipDeviceProp_t devProp;
   MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
-  KOUT(NON) << " System version " << devProp.major << "." << devProp.minor;
-  KOUT(NON) << " agent name     " << devProp.name;
-  KOUT(NON) << " cores          " << devProp.multiProcessorCount;
-  KOUT(NON) << " threadsPCore   " << devProp.maxThreadsPerMultiProcessor;
-  KOUT(NON) << " TotalMem       " << (devProp.totalGlobalMem / 1000000) << " MB";
-  KOUT(NON) << " BlockMem       " << (devProp.sharedMemPerBlock / 1000) << " KB";
-  KOUT(NON) << " warpSize       " << devProp.warpSize;
-  KOUT(NON) << " threadsPBlock  " << devProp.maxThreadsPerBlock;
+  KOUT(NON) << " System version  " << devProp.major << "." << devProp.minor;
+  KOUT(NON) << " agent name      " << devProp.name;
+  KOUT(NON) << " cores           " << devProp.multiProcessorCount;
+  KOUT(NON) << " threadsPCore    " << devProp.maxThreadsPerMultiProcessor;
+  KOUT(NON) << " TotalMem        " << (devProp.totalGlobalMem / 1000000) << " MB";
+  KOUT(NON) << " BlockMem        " << (devProp.sharedMemPerBlock / 1000) << " KB";
+  KOUT(NON) << " device warpSize " << devProp.warpSize;
+  KOUT(NON) << " threadsPBlock   " << devProp.maxThreadsPerBlock;
+
+#ifdef _MKN_GPU_WARP_SIZE_
+  KOUT(NON) << " warpSize used   " << _MKN_GPU_WARP_SIZE_;
+#else
+  KOUT(NON) << " warpSize used   " << warp_size;
+  if (warp_size != devProp.warpSize) {
+    KOUT(NON) << " warpSize MISMATCH!!!  " << warp_size << " vs " << devProp.warpSize;
+    KOUT(NON) << " SEE mkn.gpu README for -D_MKN_GPU_WARP_SIZE_=###";
+  }
+#endif
 }
 
 void inline print_gpu_mem_used() {

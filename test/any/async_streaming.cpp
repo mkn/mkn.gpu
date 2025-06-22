@@ -232,10 +232,10 @@ std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2)
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test()                              //
-         + test_threaded()                   //
-         + test_threaded(6)                  //
-         + test_threaded_group_barrier()     //
-         + test_threaded_host_group_mutex()  //
+  return test()                                //
+         + test_threaded(0) + test_threaded()  //
+         + test_threaded(6)                    //
+         + test_threaded_group_barrier()       //
+         + test_threaded_host_group_mutex()    //
          + test_threaded_host_group_idx() + test_threaded_detached_stream_fns();
 }
