@@ -32,7 +32,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_ROCM_HPP_
 #define _MKN_GPU_ROCM_HPP_
 
-// #include "mkn/gpu.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
