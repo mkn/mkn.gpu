@@ -23,7 +23,7 @@ profile:
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers
-  arg: -DMKN_GPU_CPU=1
+  # arg: -DMKN_GPU_CPU=1
   test: test/any/(\w).cpp
         test/cpu/(\w).cpp
 
