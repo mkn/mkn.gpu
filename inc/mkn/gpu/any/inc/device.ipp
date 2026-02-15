@@ -59,12 +59,12 @@ struct DeviceMem {
   }
 
   void send(T const* t, std::size_t _size = 1, std::size_t start = 0) {
-    MKN_GPU_NS::send(p, t, _size, start);
+    MKN_GPU_NS::send(p + start, t, _size);
   }
 
   template <typename C, std::enable_if_t<mkn::kul::is_span_like_v<C>, bool> = 0>
   void send(C const& c, std::size_t start = 0) {
-    send(c.data(), c.size(), start);
+    send(c.data() + start, c.size());
   }
 
   void fill_n(T t, std::size_t _size, std::size_t start = 0) {
@@ -128,14 +128,14 @@ struct AsioDeviceMem {
 
   void send(Stream& stream, T* t, std::size_t _size = 1, std::size_t start = 0) {
     assert(p != nullptr);
-    MKN_GPU_NS::send_async(p, t, stream, _size, start);
+    MKN_GPU_NS::send_async(p + start, t + start, stream(), _size);
   }
 
   template <typename Span>
   void take(Stream& stream, Span& span, std::size_t start) {
     assert(p != nullptr);
     assert(span.size() + start <= s);
-    MKN_GPU_NS::take_async(p, span, stream, start);
+    MKN_GPU_NS::take_async(p + start, span.data(), stream(), span.size());
   }
 
   auto& size() const { return s; }

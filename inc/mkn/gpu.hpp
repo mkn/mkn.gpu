@@ -31,7 +31,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _MKN_GPU_HPP_
 #define _MKN_GPU_HPP_
 
-#include "mkn/gpu/defines.hpp"
+#include "mkn/gpu/def.hpp"
+
+#if MKN_GPU_ROCM
+#include "mkn/gpu/rocm.hpp"
+#endif
+
+#if MKN_GPU_CUDA
+#include "mkn/gpu/cuda.hpp"
+#endif
+
+#if MKN_GPU_CPU
+#include "mkn/gpu/cpu.hpp"
+#endif
 
 namespace mkn::gpu {
 

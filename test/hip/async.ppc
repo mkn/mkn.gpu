@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < nStreams; ++i) checkHip(hipStreamCreate(&stream[i]));
 
   // baseline case - sequential transfer and execute
-  checkHip(hipMemset(a, 0, bytes));
+  memset(a, 0, bytes);
   checkHip(hipEventRecord(startEvent, 0));
   checkHip(hipMemcpy(d_a, a, bytes, hipMemcpyHostToDevice));
   kernel<<<n / blockSize, blockSize>>>(d_a, 0);
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
   printf("  max error: %e\n", maxError(a, n));
 
   // asynchronous version 1: loop over {copy, kernel, copy}
-  checkHip(hipMemset(a, 0, bytes));
+  memset(a, 0, bytes);
   checkHip(hipEventRecord(startEvent, 0));
   for (int i = 0; i < nStreams; ++i) {
     int offset = i * streamSize;
@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
 
   // asynchronous version 2:
   // loop over copy, loop over kernel, loop over copy
-  checkHip(hipMemset(a, 0, bytes));
+  memset(a, 0, bytes);
   checkHip(hipEventRecord(startEvent, 0));
   for (int i = 0; i < nStreams; ++i) {
     int offset = i * streamSize;

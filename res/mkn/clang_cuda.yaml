@@ -15,7 +15,7 @@ super: settings
 
 property:
   cxx_flags: --std=c++20 -fPIC -fsized-deallocation -Wno-unknown-cuda-version
-  cxx_cuda: -x cuda --cuda-gpu-arch="sm_61" -Xclang -fcuda-allow-variadic-functions
+  cxx_cuda: -x cuda --cuda-gpu-arch="sm_120" -Xclang -fcuda-allow-variadic-functions
 
 env: |
   PATH=/usr/local/cuda/bin:${PATH}
@@ -23,13 +23,9 @@ env: |
 inc: /usr/local/cuda/targets/x86_64-linux/include
 path: /usr/local/cuda/targets/x86_64-linux/lib
 
-compiler:
-  mask:
-    clang++:
-      clang++-17
 
 file:
   - type: cpp:cxx:cc
     archiver: ar -cr
-    compiler:  clang++-17 ${cxx_flags} ${cxx_cuda}
-    linker:  clang++-17 -Wl,-z,defs -fuse-ld=gold -lcudart
+    compiler:  clang++ ${cxx_flags} ${cxx_cuda}
+    linker:  clang++ -Wl,-z,defs -lcudart
