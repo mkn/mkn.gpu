@@ -193,34 +193,32 @@ void send(void* p, void* t, Size size = 1) {
 }
 
 template <typename T, typename Size>
-void send(T* p, T const* t, Size size = 1, Size start = 0) {
+void send(T* p, T const* t, Size size = 1) {
   KLOG(TRC);
-  MKN_GPU_ASSERT(std::memcpy(p + start, t, size * sizeof(T)));
+  MKN_GPU_ASSERT(std::memcpy(p, t, size * sizeof(T)));
+}
+template <typename T, typename Size>
+void send_async(T* p, T const* t, auto& /*stream*/, Size size = 1) {
+  KLOG(TRC);
+  send(p, t, size);
 }
 
 template <typename T, typename Size>
-void take(T* p, T* t, Size size = 1, Size start = 0) {
+void take(T const* p, T* t, Size size = 1) {
   KLOG(TRC);
-  MKN_GPU_ASSERT(std::memcpy(t, p + start, size * sizeof(T)));
+  MKN_GPU_ASSERT(std::memcpy(t, p, size * sizeof(T)));
 }
 
 template <typename T, typename Size>
-void send_async(T* p, T const* t, Stream& /*stream*/, Size size = 1, Size start = 0) {
+void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
   KLOG(TRC);
-  send(p, t, size, start);
-}
-
-template <typename T, typename Span>
-void take_async(T* p, Span& span, Stream& /*stream*/, std::size_t start) {
-  static_assert(mkn::kul::is_span_like_v<Span>);
-  KLOG(TRC);
-  take(p, span.data(), span.size(), start);
+  take(p, t, size);
 }
 
 void inline sync() {}
 
-#include "mkn/gpu/alloc.hpp"
-#include "mkn/gpu/device.hpp"
+#include "mkn/gpu/any/inc/alloc.ipp"
+#include "mkn/gpu/any/inc/device.ipp"
 
 namespace detail {
 static thread_local std::size_t idx = 0;
@@ -281,8 +279,8 @@ void fill(Container& c, T const val) {
 }
 
 template <typename T>
-void zero(T* const t, std::size_t const size) {
-  std::fill(t, t + size, 0);
+void fill_warp_size(T* const t, std::size_t const size, T const val) {
+  std::fill(t, t + size, val);
 }
 
 void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Psuedo GPU in use"; }
@@ -310,7 +308,7 @@ static void global_d_kernel(F& f, Args... args) {
   f(args...);
 }
 
-#include "launchers.hpp"
+#include "mkn/gpu/any/inc/launchers.ipp"
 
 } /* namespace MKN_GPU_NS */
 

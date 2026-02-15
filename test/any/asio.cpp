@@ -6,7 +6,7 @@
 #include "mkn/gpu/asio.hpp"
 #include "__share__.hpp"
 
-#if defined(MKN_GPU_CPU)
+#if MKN_GPU_CPU
 static constexpr std::uint32_t BATCHES = 1;
 #else
 static constexpr std::uint32_t BATCHES = 2;

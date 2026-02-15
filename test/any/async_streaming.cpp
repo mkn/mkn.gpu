@@ -1,11 +1,11 @@
 
-#include <thread>
-#include <algorithm>
 
 #include "mkn/gpu.hpp"
 #include "mkn/kul/dbg.hpp"
 #include "mkn/kul/time.hpp"
-#include "mkn/gpu/multi_launch.hpp"
+#include "mkn/gpu/stream.hpp"
+
+#include <algorithm>
 
 using namespace mkn::gpu;
 using namespace std::chrono_literals;
@@ -21,7 +21,7 @@ struct A {
 };
 
 std::uint32_t test() {
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
   using T = double;
 
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
@@ -54,7 +54,7 @@ std::uint32_t test() {
 }
 
 std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
   using T = double;
 
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
@@ -87,7 +87,7 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
 
 std::uint32_t test_threaded_group_barrier(std::size_t const& nthreads = 2) {
   using T = double;
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
 
   std::vector<ManagedVector<T>> vecs(C + 1, ManagedVector<T>(NUM, 0));
   for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);
@@ -121,7 +121,7 @@ std::uint32_t test_threaded_group_barrier(std::size_t const& nthreads = 2) {
 
 std::uint32_t test_threaded_host_group_mutex(std::size_t const& nthreads = 2) {
   using T = double;
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
 
   std::size_t constexpr group_size = 3;
   std::vector<size_t> vals((C + 1) / group_size);  // 2 values;
@@ -156,7 +156,7 @@ std::uint32_t test_threaded_host_group_mutex(std::size_t const& nthreads = 2) {
 
 std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
   using T = double;
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
 
   std::size_t constexpr group_size = 3;
 
@@ -196,7 +196,7 @@ std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
 
 std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2) {
   using T = double;
-  KUL_DBG_FUNC_ENTER;
+  MKN_KUL_DBG_FUNC_ENTER;
 
   std::vector<ManagedVector<T>> vecs(C, ManagedVector<T>(NUM, 0));
   for (std::size_t i = 0; i < vecs.size(); ++i) std::fill_n(vecs[i].data(), NUM, i);

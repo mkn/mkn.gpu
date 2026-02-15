@@ -1,0 +1,21 @@
+#
+
+super: settings
+
+property:
+  cxx_flags: --std=c++20 -Xcompiler -fPIC # -fPIC -fsized-deallocation -Wno-unknown-cuda-version
+  cxx_cuda: -x cu --extended-lambda #-x cuda --cuda-gpu-arch="sm_80" -Xclang -fcuda-allow-variadic-functions
+
+env: |
+  PATH=/usr/local/cuda/bin:${PATH}
+
+# inc: /usr/local/cuda/targets/x86_64-linux/include
+# path: /usr/local/cuda/targets/x86_64-linux/lib
+
+file:
+  - type: cpp:cxx:cc
+    archiver: ar -cr
+    compiler:  nvcc ${cxx_flags} ${cxx_cuda}
+    linker:  nvcc -lcudart
+
+

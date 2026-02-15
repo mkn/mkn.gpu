@@ -92,8 +92,8 @@ std::uint32_t test_zero() {
   auto* view1 = mem1.data();
 
   mkn::gpu::DLauncher()([=] __device__() {
-    mkn::gpu::zero(view0, size);
-    mkn::gpu::zero(view1, size);
+    mkn::gpu::fill_warp_size(view0, size, 0.0f);
+    mkn::gpu::fill_warp_size(view1, size, 0.0f);
   });
 
   for (std::uint32_t i = 0; i < size; ++i)
