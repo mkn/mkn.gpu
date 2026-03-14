@@ -62,27 +62,15 @@ struct StreamEvent {
 template <typename T>
 struct Pointer {
   Pointer(T* _t) : t{_t} {
-    assert(t);
+    if (!t) throw std::runtime_error("invalid nullptr");
     MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t));
-    type = attributes.type;
   }
-
-  bool is_unregistered_ptr() const {
-    return attributes.type == hipMemoryType::hipMemoryTypeUnregistered;
-  }
-  bool is_host_ptr() const {
-    return is_unregistered_ptr() || type == hipMemoryType::hipMemoryTypeHost;
-  }
-  bool is_device_ptr() const {
-    return type == hipMemoryType::hipMemoryTypeDevice || attributes.isManaged;
-  }
-  bool is_managed_ptr() const {
-    return attributes.isManaged || type == hipMemoryType::hipMemoryTypeUnified;
-  }
+  bool is_host_ptr() const { return attributes.type == hipMemoryTypeHost; }
+  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == hipMemoryTypeDevice; }
+  bool is_managed_ptr() const { return attributes.type == hipMemoryTypeManaged; }
 
   T* t;
   hipPointerAttribute_t attributes;
-  hipMemoryType type = hipMemoryType::hipMemoryTypeUnregistered;
 };
 
 #include "mkn/gpu/any/inc/alloc.ipp"

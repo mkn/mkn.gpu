@@ -1,13 +1,13 @@
 #ifndef _MKN_GPU_CUDA_DEF_HPP_
 #define _MKN_GPU_CUDA_DEF_HPP_
 
+#include "mkn/kul/log.hpp"
+#include "mkn/gpu/def.hpp"
+
 #include <string>
 #include <cstdint>
 
 #include <cuda_runtime.h>
-
-#include "mkn/kul/log.hpp"
-#include "mkn/gpu/def.hpp"
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cuda
@@ -32,17 +32,29 @@ inline void gpuAssert(cudaError_t code, char const* file, int line, bool abort =
 
 std::string getErrorString(auto const code) { return cudaGetErrorString(code); }
 
+auto inline getDeviceProperties(size_t dev = 0) {
+  cudaDeviceProp devProp;
+  MKN_GPU_ASSERT(cudaGetDeviceProperties(&devProp, dev));
+  return devProp;
+}
+
 std::uint32_t inline getWarpSize(size_t dev = 0) {
 #ifdef _MKN_GPU_WARP_SIZE_
   return _MKN_GPU_WARP_SIZE_;
+
 #else
-  cudaDeviceProp devProp;
-  [[maybe_unused]] auto ret = cudaGetDeviceProperties(&devProp, dev);
-  return devProp.warpSize;
+  return getDeviceProperties(dev).warpSize;
+
 #endif /*_MKN_GPU_WARP_SIZE_    */
 }
 
 static std::uint32_t inline const warp_size = getWarpSize();
+
+auto inline getLimitMallocHeapSize() {
+  std::size_t bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetLimit(&bytes, cudaLimitMallocHeapSize));
+  return bytes;
+}
 
 void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitMallocHeapSize, bytes));

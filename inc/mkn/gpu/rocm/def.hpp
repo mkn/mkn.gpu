@@ -4,9 +4,10 @@
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
 
-#include "hip/hip_runtime.h"
-
 #include <string>
+#include <cstdint>
+
+#include "hip/hip_runtime.h"
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::hip
@@ -31,17 +32,31 @@ inline void gpuAssert(hipError_t code, char const* file, int line, bool abort = 
 
 std::string getErrorString(auto const code) { return hipGetErrorString(code); }
 
+auto inline getDeviceProperties(size_t dev = 0) {
+  hipDeviceProp_t devProp;
+  MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
+  return devProp;
+}
+
 std::uint32_t inline getWarpSize(size_t dev = 0) {
 #ifdef _MKN_GPU_WARP_SIZE_
   return _MKN_GPU_WARP_SIZE_;
+
 #else
   hipDeviceProp_t devProp;
-  [[maybe_unused]] auto ret = hipGetDeviceProperties(&devProp, dev);
+  MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
   return devProp.warpSize;
+
 #endif /*_MKN_GPU_WARP_SIZE_    */
 }
 
 static std::uint32_t inline const warp_size = getWarpSize();
+
+auto inline getLimitMallocHeapSize() {
+  std::size_t bytes = 0;
+  MKN_GPU_ASSERT(hipDeviceGetLimit(&bytes, hipLimitMallocHeapSize));
+  return bytes;
+}
 
 void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitMallocHeapSize, bytes));

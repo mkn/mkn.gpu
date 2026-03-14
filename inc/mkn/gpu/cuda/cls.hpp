@@ -64,14 +64,13 @@ struct StreamEvent {
 
 template <typename T>
 struct Pointer {
-  Pointer(T* _t) : t{_t} { MKN_GPU_ASSERT(cudaPointerGetAttributes(&attributes, t)); }
-
-  bool is_unregistered_ptr() const { return attributes.type == 0; }
-  bool is_host_ptr() const {
-    return attributes.type == 1 || (is_unregistered_ptr() && t != nullptr);
+  Pointer(T* _t) : t{_t} {
+    if (!t) throw std::runtime_error("invalid nullptr");
+    MKN_GPU_ASSERT(cudaPointerGetAttributes(&attributes, t));
   }
-  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == 2; }
-  bool is_managed_ptr() const { return attributes.type == 3; }
+  bool is_host_ptr() const { return attributes.type == cudaMemoryTypeHost; }
+  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == cudaMemoryTypeDevice; }
+  bool is_managed_ptr() const { return attributes.type == cudaMemoryTypeManaged; }
 
   T* t;
   cudaPointerAttributes attributes;
@@ -83,7 +82,7 @@ struct Pointer {
 template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... args) {
   std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
-  KLOG(TRC) << N;
+  KLOG(TRC) << "N=" << N << " ds=" << ds;
   std::apply(
       [&](auto&&... params) {
         f<<<g, b, ds, s>>>(params...);

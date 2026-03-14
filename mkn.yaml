@@ -27,6 +27,10 @@ profile:
   test: test/any/(\w).cpp
         test/cpu/(\w).cpp
 
+- name: mem_test
+  parent: headers
+  main: test/mem/test_alloc.cpp
+
 - name: format
   mod: |
     clang.format{init{style: file, paths: inc test}}
