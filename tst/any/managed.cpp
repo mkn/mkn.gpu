@@ -1,6 +1,8 @@
 
 #include "mkn/gpu.hpp"
 
+#include "mkn/kul/assert.hpp"
+
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
 static constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
@@ -21,9 +23,8 @@ __global__ void kernel(S* structs) {
 template <typename L>
 std::uint32_t _test(L&& launcher) {
   ManagedVector<S> mem{NUM};
-  if constexpr (!mkn::gpu::CompileFlags::withCPU) {
-    assert(mkn::gpu::Pointer{mem.data()}.is_managed_ptr());
-  }
+  if constexpr (!mkn::gpu::CompileFlags::withCPU)
+    mkn::kul::abort_if_not(mkn::gpu::Pointer{mem.data()}.is_managed_ptr() && "not host pointer");
 
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
@@ -102,10 +103,25 @@ std::uint32_t test_zero() {
   return 0;
 }
 
+uint32_t test_copy() {
+  std::vector<float> hst0(NUM, 1), hst1(NUM, 2);
+  ManagedVector<float> dev0(NUM), dev1(NUM);
+
+  // copy(T0* dst, T1* src, Size const size)
+  mkn::gpu::copy(dev0, hst0);
+  if (dev0.back() != 1) return 1;
+  mkn::gpu::copy(hst1, hst0);
+  if (hst1.back() != 1) return 1;
+  mkn::gpu::copy(dev1, hst1);
+
+  return dev1[NUM - 1] != 1;
+}
+
 int main() {
   KOUT(NON) << __FILE__;
-  return test() + test_zero() +              //
-         test_guess() +                      //
-         test_lambda_copy_capture_views() +  //
-         test_lambda_ref_copy_capture_views();
+  return test() + test_zero() +                  //
+         test_guess() +                          //
+         test_lambda_copy_capture_views() +      //
+         test_lambda_ref_copy_capture_views() +  //
+         test_copy();
 }

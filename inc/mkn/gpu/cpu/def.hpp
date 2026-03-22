@@ -66,7 +66,7 @@ struct DeviceProperties {
   std::size_t maxThreadsPerMultiProcessor = 0;
   std::size_t totalGlobalMem = 0;
   std::size_t sharedMemPerBlock = 0;
-  std::size_t warpSize = 0;
+  std::size_t warpSize = 1;
   std::size_t maxThreadsPerBlock = 0;
 };
 

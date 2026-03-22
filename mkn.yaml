@@ -11,25 +11,28 @@ profile:
 - name: rocm
   parent: headers
   arg: -DMKN_GPU_ROCM=1
-  test: test/any/(\w).cpp
-        test/hip/(\w).cpp
+  # main: tst/any/managed.cpp
+  test: tst/any/(\w).cpp
+        tst/hip/(\w).cpp
 
 - name: cuda
   parent: headers
   arg: -DMKN_GPU_CUDA=1
-  test: test/any/(\w).cpp
-        test/cuda/(\w).cpp
+  # main: tst/any/managed.cpp
+  test: tst/any/(\w).cpp
+        tst/cuda/(\w).cpp
 
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers
+  # main: tst/any/class1.cpp
   arg: -DMKN_GPU_CPU=1
-  test: test/any/(\w).cpp
-        test/cpu/(\w).cpp
+  test: tst/any/(\w).cpp
+        tst/cpu/(\w).cpp
 
 - name: mem_test
   parent: headers
-  main: test/mem/test_alloc.cpp
+  main: tst/mem/test_alloc.cpp
 
 - name: format
   mod: |

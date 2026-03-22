@@ -69,10 +69,11 @@ struct Pointer {
     MKN_GPU_ASSERT(cudaPointerGetAttributes(&attributes, t));
   }
   bool is_host_ptr() const {
-    return attributes.type == cudaMemoryTypeUnregistered or attributes.type == cudaMemoryTypeHost;
+    return type() == cudaMemoryTypeUnregistered or type() == cudaMemoryTypeHost;
   }
-  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == cudaMemoryTypeDevice; }
-  bool is_managed_ptr() const { return attributes.type == cudaMemoryTypeManaged; }
+  bool is_device_ptr() const { return type() == cudaMemoryTypeDevice; }
+  bool is_managed_ptr() const { return type() == cudaMemoryTypeManaged; }
+  auto type() const { return attributes.type; }
 
   T* t;
   cudaPointerAttributes attributes;

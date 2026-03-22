@@ -56,8 +56,6 @@ struct StreamEvent {
   bool fin = 0;
 };
 
-//
-
 // https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
 template <typename T>
 struct Pointer {
@@ -65,9 +63,14 @@ struct Pointer {
     if (!t) throw std::runtime_error("invalid nullptr");
     MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t));
   }
-  bool is_host_ptr() const { return attributes.type == hipMemoryTypeHost; }
-  bool is_device_ptr() const { return is_managed_ptr() || attributes.type == hipMemoryTypeDevice; }
-  bool is_managed_ptr() const { return attributes.type == hipMemoryTypeManaged; }
+  bool is_host_ptr() const { return type() == hipMemoryTypeHost; }
+  bool is_device_ptr() const {
+    return type() == hipMemoryTypeDevice || type() == hipMemoryTypeArray;
+  }
+  bool is_managed_ptr() const {
+    return type() == hipMemoryTypeManaged || type() == hipMemoryTypeUnified;
+  }
+  auto type() const { return attributes.type; }
 
   T* t;
   hipPointerAttribute_t attributes;

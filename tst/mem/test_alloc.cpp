@@ -1,10 +1,10 @@
 
-#include <stdexcept>
-#include "mkn/gpu.hpp"
-
-#include "mkn/gpu/def.hpp"
-#include "mkn/kul/except.hpp"
 #include "mkn/kul/log.hpp"
+
+#include "mkn/gpu.hpp"
+#include "mkn/gpu/def.hpp"
+
+#include <stdexcept>
 
 template <typename T>
 using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;

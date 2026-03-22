@@ -1,6 +1,8 @@
 
 #include "mkn/gpu.hpp"
 
+#include "mkn/kul/assert.hpp"
+
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
 static constexpr uint32_t TPB_X = 16, TPB_Y = 16;
@@ -31,19 +33,17 @@ template <typename Float>
 uint32_t test_add1() {
   std::vector<Float> b(NUM);
 
-  assert(mkn::gpu::Pointer{b.data()}.is_host_ptr());
+  mkn::kul::abort_if_not(mkn::gpu::Pointer{b.data()}.is_host_ptr() && "not host pointer");
 
   for (uint32_t i = 0; i < NUM; i++) b[i] = i;
   mkn::gpu::DeviceMem<Float> devA(NUM), devB(b);
 
-  if constexpr (!mkn::gpu::CompileFlags::withCPU) {
-    assert(mkn::gpu::Pointer{devA.p}.is_device_ptr());
-  }
+  if constexpr (!mkn::gpu::CompileFlags::withCPU)
+    mkn::kul::abort_if_not(mkn::gpu::Pointer{devA.p}.is_device_ptr() && "not device pointer");
 
   mkn::gpu::Launcher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd1<Float>, devA, devB);
   auto a = devA();
 
-  // assert(mkn::gpu::Pointer{a.data()}.is_device_ptr());
   for (uint32_t i = 0; i < NUM; i++)
     if (a[i] != b[i] + 1) return 1;
   return 0;

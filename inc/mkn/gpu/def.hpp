@@ -3,6 +3,29 @@
 
 #include <type_traits>
 
+#if MKN_GPU_ROCM and MKN_GPU_CUDA
+#error  // not possible
+#endif
+
+#if MKN_GPU_ROCM
+#define MKN_GPU_CUDA 0
+#endif
+
+#if MKN_GPU_CUDA
+#define MKN_GPU_ROCM 0
+#endif
+
+#if MKN_GPU_CPU
+#define MKN_GPU_ROCM 0
+#define MKN_GPU_CUDA 0
+#endif
+
+#if !defined(MKN_GPU_ROCM) and !defined(MKN_GPU_CUDA)
+#if __has_include(<cuda_runtime.h>) and __has_include("hip/hip_runtime.h")
+#error  // ACTIVATE ONE!
+#endif  // __has_include(...)
+#endif  // !defined(...)
+
 #if !defined(MKN_GPU_ROCM) and __has_include("hip/hip_runtime.h")
 #define MKN_GPU_ROCM 1
 #endif
