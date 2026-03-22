@@ -68,7 +68,9 @@ struct Pointer {
     if (!t) throw std::runtime_error("invalid nullptr");
     MKN_GPU_ASSERT(cudaPointerGetAttributes(&attributes, t));
   }
-  bool is_host_ptr() const { return attributes.type == cudaMemoryTypeHost; }
+  bool is_host_ptr() const {
+    return attributes.type == cudaMemoryTypeUnregistered or attributes.type == cudaMemoryTypeHost;
+  }
   bool is_device_ptr() const { return is_managed_ptr() || attributes.type == cudaMemoryTypeDevice; }
   bool is_managed_ptr() const { return attributes.type == cudaMemoryTypeManaged; }
 
