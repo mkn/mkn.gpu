@@ -79,6 +79,8 @@ void inline prinfo(size_t dev = 0) {
     KOUT(NON) << " SEE mkn.gpu README for -D_MKN_GPU_WARP_SIZE_=###";
   }
 #endif
+  KOUT(NON) << " version:        " << HIP_VERSION_MAJOR << "." << HIP_VERSION_MINOR << "."
+            << HIP_VERSION_PATCH;
 }
 
 void inline print_gpu_mem_used() {

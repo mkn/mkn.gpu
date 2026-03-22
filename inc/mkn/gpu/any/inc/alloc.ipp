@@ -110,13 +110,16 @@ template <typename T0, typename T1, typename Size>
 void copy(T0* dst, T1* src, Size const size) {
   assert(dst and src);
 
-  Pointer src_p{src};
-  Pointer dst_p{dst};
+  auto const is_dev = [](auto const& ptr) { return ptr.is_device_ptr() || ptr.is_managed_ptr(); };
+  auto const is_hst = [](auto const& ptr) { return ptr.is_host_ptr() || ptr.is_managed_ptr(); };
 
-  auto to_send = [&]() { return dst_p.is_device_ptr() && src_p.is_host_ptr(); };
-  auto to_take = [&]() { return dst_p.is_host_ptr() && src_p.is_device_ptr(); };
-  auto on_host = [&]() { return dst_p.is_host_ptr() && src_p.is_host_ptr(); };
-  auto on_device = [&]() { return dst_p.is_device_ptr() && src_p.is_device_ptr(); };
+  Pointer const src_p{src};
+  Pointer const dst_p{dst};
+
+  auto const to_send = [&]() { return is_dev(dst_p) && is_hst(src_p); };
+  auto const to_take = [&]() { return is_hst(dst_p) && is_dev(src_p); };
+  auto const on_host = [&]() { return is_hst(dst_p) && is_hst(src_p); };
+  auto const on_device = [&]() { return is_dev(dst_p) && is_dev(src_p); };
 
   if (on_host())
     std::copy(src, src + size, dst);
@@ -128,6 +131,12 @@ void copy(T0* dst, T1* src, Size const size) {
     take(src, dst, size);
   else
     throw std::runtime_error("Unsupported operation (PR welcome)");
+}
+
+void copy(auto& dst, auto const& src) {
+  if (dst.size() > src.size()) throw std::runtime_error("mkn::gpu::copy src too small!");
+
+  copy(dst.data(), src.data(), dst.size());
 }
 
 template <typename T, std::int32_t align>

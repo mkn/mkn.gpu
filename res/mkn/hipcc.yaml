@@ -1,4 +1,3 @@
-## Recommended settings commented out.
 
 super: settings
 
@@ -6,6 +5,7 @@ compiler:
   mask:
     g++: hipcc
 
+path: /opt/rocm/lib
 env:
  PATH=/opt/rocm/bin:${PATH}
 
