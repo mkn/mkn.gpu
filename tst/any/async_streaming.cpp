@@ -16,10 +16,6 @@ std::size_t constexpr static C = 5;               // ~ 5MB of doubles
 template <typename T>
 using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;
 
-struct A {
-  std::uint32_t i0;
-};
-
 std::uint32_t test() {
   MKN_KUL_DBG_FUNC_ENTER;
   using T = double;

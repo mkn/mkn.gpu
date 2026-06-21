@@ -36,6 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/time.hpp"
 #include "mkn/kul/except.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -217,7 +218,7 @@ struct StreamLauncher {
   Self& self = *reinterpret_cast<Self*>(this);
 };
 
-enum class SFS : std::uint16_t { FIRST = 0, BUSY, WAIT, FIN };
+enum class SFS : std::uint16_t { FIRST = 0, BUSY, WAIT, FIN, SKIP };
 enum class SFP : std::uint16_t { WORK = 0, NEXT, SKIP };
 
 template <typename Strat, typename Fn>
@@ -324,7 +325,7 @@ struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
       fn(i);
       strat.status[i] = SFS::WAIT;  // done
     } else {
-      strat.status[i] = SFS::FIRST;  // retry
+      strat.status[i] = SFS::SKIP;  // retry
     }
   }
 
@@ -483,6 +484,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
       auto const i = work_i;
       if (status[i] == SFS::FIN || status[i] == SFS::BUSY) continue;
 
+      if (status[i] == SFS::SKIP) {
+        status[i] = SFS::FIRST;
+        continue;
+      }
+
       if (status[i] == SFS::FIRST) {
         status[i] = SFS::BUSY;
         return std::make_pair(SFP::WORK, i);
@@ -562,7 +568,8 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   std::vector<std::uint16_t>& step = Super::data_step;
 
  private:
-  bool joined = false, started = false, done = false;
+  bool joined = false, started = false;
+  std::atomic<bool> done = false;
   std::size_t work_i = 0;
 };
 
