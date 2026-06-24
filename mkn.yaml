@@ -11,21 +11,18 @@ profile:
 - name: rocm
   parent: headers
   arg: -DMKN_GPU_ROCM=1
-  # main: tst/any/managed.cpp
   test: tst/any/(\w).cpp
         tst/hip/(\w).cpp
 
 - name: cuda
   parent: headers
   arg: -DMKN_GPU_CUDA=1
-  # main: tst/any/managed.cpp
   test: tst/any/(\w).cpp
         tst/cuda/(\w).cpp
 
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers
-  # main: tst/any/class1.cpp
   arg: -DMKN_GPU_CPU=1
   test: tst/any/(\w).cpp
         tst/cpu/(\w).cpp
