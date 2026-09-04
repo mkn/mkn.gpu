@@ -63,7 +63,9 @@ struct Pointer {
     if (!t) throw std::runtime_error("invalid nullptr");
     MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t));
   }
-  bool is_host_ptr() const { return type() == hipMemoryTypeHost; }
+  bool is_host_ptr() const {
+    return type() == hipMemoryTypeUnregistered || type() == hipMemoryTypeHost;
+  }
   bool is_device_ptr() const {
     return type() == hipMemoryTypeDevice || type() == hipMemoryTypeArray;
   }
