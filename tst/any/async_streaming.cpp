@@ -7,6 +7,8 @@
 
 #include <algorithm>
 
+#include <algorithm>
+
 using namespace mkn::gpu;
 using namespace std::chrono_literals;
 

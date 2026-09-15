@@ -1,0 +1,15 @@
+#! build -p pyb -qx ../../../res/mkn/nvcc.yaml -a "-g"
+
+name: poc
+dep: mkn.gpu
+
+profile:
+- name: pyb
+  inc: .
+  dep: lang.pybind11 mkn.gpu
+  mod: lang.python3 python3.module
+  src: pybind.cpp
+  install: .
+  env: |
+    MKN_LIB_LINK_LIB=1
+    MKN_PYTHON_LIB_EMBED=1
