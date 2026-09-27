@@ -166,34 +166,35 @@ struct DeviceLauncher : public ALauncher<Mode> {
   }
 };
 
-GlobalLauncher(std::size_t) -> GlobalLauncher<Guess>;
-GlobalLauncher(std::size_t, std::size_t) -> GlobalLauncher<Guess>;
-template <detail::span_like C>
-GlobalLauncher(C const&) -> GlobalLauncher<Guess>;
-template <detail::span_like C>
-GlobalLauncher(C const&, std::size_t) -> GlobalLauncher<Guess>;
-GlobalLauncher() -> GlobalLauncher<Fixed>;
-GlobalLauncher(dim3, dim3) -> GlobalLauncher<Fixed>;
-GlobalLauncher(std::size_t, std::size_t, std::size_t, std::size_t) -> GlobalLauncher<Fixed>;
-GlobalLauncher(std::size_t, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t)
-    -> GlobalLauncher<Fixed>;
-
-DeviceLauncher(std::size_t) -> DeviceLauncher<Guess>;
-DeviceLauncher(std::size_t, std::size_t) -> DeviceLauncher<Guess>;
-template <detail::span_like C>
-DeviceLauncher(C const&) -> DeviceLauncher<Guess>;
-template <detail::span_like C>
-DeviceLauncher(C const&, std::size_t) -> DeviceLauncher<Guess>;
-DeviceLauncher() -> DeviceLauncher<Fixed>;
-DeviceLauncher(dim3, dim3) -> DeviceLauncher<Fixed>;
-DeviceLauncher(std::size_t, std::size_t, std::size_t, std::size_t) -> DeviceLauncher<Fixed>;
-DeviceLauncher(std::size_t, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t)
-    -> DeviceLauncher<Fixed>;
+// short names are class templates rather than alias templates, not all compilers can deduce
+//  through an alias yet (clang < 19)
+template <typename Mode>
+struct GLauncher : public GlobalLauncher<Mode> {
+  using GlobalLauncher<Mode>::GlobalLauncher;
+};
 
 template <typename Mode>
-using GLauncher = GlobalLauncher<Mode>;
+struct DLauncher : public DeviceLauncher<Mode> {
+  using DeviceLauncher<Mode>::DeviceLauncher;
+};
 
-template <typename Mode>
-using DLauncher = DeviceLauncher<Mode>;
+#define MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(L)                         \
+  L(std::size_t) -> L<Guess>;                                        \
+  L(std::size_t, std::size_t) -> L<Guess>;                           \
+  template <detail::span_like C>                                     \
+  L(C const&) -> L<Guess>;                                           \
+  template <detail::span_like C>                                     \
+  L(C const&, std::size_t) -> L<Guess>;                              \
+  L() -> L<Fixed>;                                                   \
+  L(dim3, dim3) -> L<Fixed>;                                         \
+  L(std::size_t, std::size_t, std::size_t, std::size_t) -> L<Fixed>; \
+  L(std::size_t, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t) -> L<Fixed>;
+
+MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(GlobalLauncher)
+MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(DeviceLauncher)
+MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(GLauncher)
+MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(DLauncher)
+
+#undef MKN_GPU_LAUNCHER_DEDUCTION_GUIDES
 
 #endif /* _MKN_GPU_LAUNCHERS_HPP_ */

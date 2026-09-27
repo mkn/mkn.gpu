@@ -14,13 +14,15 @@ __global__ void kernel(float* data, std::size_t const size) {
   if (auto i = mkn::gpu::idx(); i < size) data[i] += 1;
 }
 
-static_assert(std::is_same_v<decltype(GLauncher{NUM}), GlobalLauncher<Guess>>);
-static_assert(std::is_same_v<decltype(DLauncher{NUM}), DeviceLauncher<Guess>>);
-static_assert(std::is_same_v<decltype(DLauncher{NUM, 0}), DeviceLauncher<Guess>>);
-static_assert(std::is_same_v<decltype(DLauncher{ManagedVector<float>{}}), DeviceLauncher<Guess>>);
-static_assert(std::is_same_v<decltype(DLauncher{}), DeviceLauncher<Fixed>>);
-static_assert(std::is_same_v<decltype(DLauncher{dim3{1}, dim3{32}}), DeviceLauncher<Fixed>>);
-static_assert(std::is_same_v<decltype(GLauncher{64, 64, 16, 16}), GlobalLauncher<Fixed>>);
+static_assert(std::is_same_v<decltype(GlobalLauncher{NUM}), GlobalLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(DeviceLauncher{NUM}), DeviceLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(GLauncher{NUM}), GLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(DLauncher{NUM}), DLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(DLauncher{NUM, 0}), DLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(DLauncher{ManagedVector<float>{}}), DLauncher<Guess>>);
+static_assert(std::is_same_v<decltype(DLauncher{}), DLauncher<Fixed>>);
+static_assert(std::is_same_v<decltype(DLauncher{dim3{1}, dim3{32}}), DLauncher<Fixed>>);
+static_assert(std::is_same_v<decltype(GLauncher{64, 64, 16, 16}), GLauncher<Fixed>>);
 
 std::uint32_t test_guess_span() {
   ManagedVector<float> mem(NUM, 1);
