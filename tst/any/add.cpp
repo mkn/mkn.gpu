@@ -16,7 +16,7 @@ __global__ void vector_inc0(T* a) {
 template <typename Float>
 uint32_t test_inc() {
   mkn::gpu::DeviceMem<Float> devA(NUM);
-  mkn::gpu::Launcher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vector_inc0<Float>, devA);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vector_inc0<Float>, devA);
   auto a = devA();
   for (uint32_t i = 0; i < NUM; i++)
     if (a[i] != i + 1) return 1;
@@ -41,7 +41,7 @@ uint32_t test_add1() {
   if constexpr (!mkn::gpu::CompileFlags::withCPU)
     mkn::kul::abort_if_not(mkn::gpu::Pointer{devA.p}.is_device_ptr() && "not device pointer");
 
-  mkn::gpu::Launcher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd1<Float>, devA, devB);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd1<Float>, devA, devB);
   auto a = devA();
 
   for (uint32_t i = 0; i < NUM; i++)
@@ -60,7 +60,7 @@ uint32_t test_add2() {
   for (uint32_t i = 0; i < NUM; i++) b[i] = i;
   for (uint32_t i = 0; i < NUM; i++) c[i] = i * 100.0f;
   mkn::gpu::DeviceMem<Float> devA(NUM), devB(b), devC(c);
-  mkn::gpu::Launcher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd2<Float>, devA, devB, devC);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, TPB_X, TPB_Y}(vectoradd2<Float>, devA, devB, devC);
   auto a = devA();
   for (uint32_t i = 0; i < NUM; i++)
     if (a[i] != b[i] + c[i]) return 1;

@@ -25,7 +25,7 @@ profile:
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers
-  # main: tst/any/class1.cpp
+  # main: tst/any/add.cpp
   arg: -DMKN_GPU_CPU=1
   test: tst/any/(\w).cpp
         tst/cpu/(\w).cpp

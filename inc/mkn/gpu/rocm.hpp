@@ -42,6 +42,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace MKN_GPU_NS {
 
+#include "mkn/gpu/any/inc/launchers.ipp"
+
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {
   if (auto i = mkn::gpu::hip::idx(); i < s) a[i] = t;
@@ -49,7 +51,7 @@ __global__ void _vector_fill(T* a, V t, std::size_t s) {
 
 template <typename Container, typename T>
 void fill(Container& c, std::size_t const size, T const val) {
-  GLauncher{c.size()}(_vector_fill<typename Container::value_type, T>, c.data(), val, size);
+  GLauncher{size}(_vector_fill<typename Container::value_type, T>, c.data(), val, size).sync();
 }
 
 template <typename Container, typename T>
@@ -94,7 +96,6 @@ void inline print_gpu_mem_used() {
          total_t, total_m, used_m);
 }
 
-#include "mkn/gpu/any/inc/launchers.ipp"
 #include "mkn/gpu/any/inc/devfunc.ipp"
 
 }  // namespace MKN_GPU_NS
