@@ -210,7 +210,7 @@ std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2)
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; });
 
   for (std::size_t i = 0; i < datas.size(); ++i) {
-    mkn::gpu::GDLauncher<false>{NUM}.stream(
+    mkn::gpu::DLauncher{NUM}.stream(
         launcher.streams[i], [=, idx = i] __device__() { views[idx][mkn::gpu::idx()] += 1; });
   }
 

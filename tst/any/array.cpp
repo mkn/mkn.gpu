@@ -18,8 +18,8 @@ uint32_t test_1() {
   for (uint32_t i = 0; i < NUM; ++i) c[i] = i * 100.0f;
 
   mkn::gpu::DeviceMem<Float> devA(NUM), devB(b), devC(c);
-  mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectoradd<Float>,
-                                                                              devA, devB, devC);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectoradd<Float>,
+                                                                               devA, devB, devC);
 
   auto a = devA();
   for (uint32_t i = 0; i < NUM; ++i)
@@ -40,8 +40,8 @@ uint32_t test_2() {
   for (uint32_t i = 0; i < NUM; ++i) host[i] = i;
 
   mkn::gpu::DeviceMem<Float> dev{host};
-  mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectorinc<Float>,
-                                                                              dev);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(vectorinc<Float>,
+                                                                               dev);
 
   auto a = dev();
   for (uint32_t i = 0; i < NUM; ++i)

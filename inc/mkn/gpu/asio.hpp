@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 
-#include "mkn/gpu/tuple.hpp"
+#include "mkn/kul/span.hpp"
 
 namespace mkn::gpu::asio {
 
@@ -114,7 +114,7 @@ struct Batch {
 
   std::vector<Stream> streams;
   AsioDeviceMem<async_value_type> _asio;
-  std::vector<mkn::gpu::Span<async_value_type>> spans;
+  std::vector<mkn::kul::Span<async_value_type>> spans;
   std::unique_ptr<HostMem<async_value_type>> _async_back;
 
   SyncTuple sync_;

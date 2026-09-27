@@ -1,6 +1,7 @@
 #ifndef _MKN_GPU_CPU_CLS_HPP_
 #define _MKN_GPU_CPU_CLS_HPP_
 
+#include "mkn/gpu/any/cls.hpp"
 #include "mkn/gpu/cpu/def.hpp"
 
 #include <tuple>
@@ -74,31 +75,20 @@ void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Arg
   blockIdx.x = 0;
 }
 
+// launch dimensions and native stream, see GlobalLauncher/DeviceLauncher
 struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
   Launcher(std::size_t w, std::size_t h, std::size_t tpx, std::size_t tpy)
-      : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
+      : Launcher{dim3(mkn::gpu::grid_dim(w, tpx), mkn::gpu::grid_dim(h, tpy)), dim3(tpx, tpy)} {}
   Launcher(std::size_t x, std::size_t y, std::size_t z, std::size_t tpx, std::size_t tpy,
            std::size_t tpz)
-      : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
-
-  template <typename F, typename... Args>
-  void operator()(F&& f, Args&&... args) {
-    launch(f, g, b, ds, s, args...);
-  }
+      : Launcher{dim3(mkn::gpu::grid_dim(x, tpx), mkn::gpu::grid_dim(y, tpy),
+                      mkn::gpu::grid_dim(z, tpz)),
+                 dim3(tpx, tpy, tpz)} {}
 
   std::size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
   std::size_t s = 0;
-};
-
-struct GLauncher : public Launcher {
-  GLauncher(std::size_t const s, std::size_t const /*dev*/ = 0)
-      : Launcher{dim3{}, dim3{}}, count{s} {
-    b.x = s;
-  }
-
-  std::size_t count;
 };
 
 }  // namespace MKN_GPU_NS

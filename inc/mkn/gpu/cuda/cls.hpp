@@ -100,41 +100,20 @@ void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... ar
   }
 }
 
+// launch dimensions and native stream, see GlobalLauncher/DeviceLauncher
 struct Launcher {
   Launcher(dim3 _g, dim3 _b) : g{_g}, b{_b} {}
-  Launcher(size_t w, size_t h, size_t tpx, size_t tpy)
-      : Launcher{dim3(w / tpx, h / tpy), dim3(tpx, tpy)} {}
-  Launcher(size_t x, size_t y, size_t z, size_t tpx, size_t tpy, size_t tpz)
-      : Launcher{dim3(x / tpx, y / tpy, z / tpz), dim3(tpx, tpy, tpz)} {}
+  Launcher(std::size_t w, std::size_t h, std::size_t tpx, std::size_t tpy)
+      : Launcher{dim3(mkn::gpu::grid_dim(w, tpx), mkn::gpu::grid_dim(h, tpy)), dim3(tpx, tpy)} {}
+  Launcher(std::size_t x, std::size_t y, std::size_t z, std::size_t tpx, std::size_t tpy,
+           std::size_t tpz)
+      : Launcher{dim3(mkn::gpu::grid_dim(x, tpx), mkn::gpu::grid_dim(y, tpy),
+                      mkn::gpu::grid_dim(z, tpz)),
+                 dim3(tpx, tpy, tpz)} {}
 
-  template <typename F, typename... Args>
-  void operator()(F&& f, Args&&... args) {
-    launch(std::forward<F>(f), g, b, ds, s, args...);
-  }
-
-  size_t ds = 0 /*dynamicShared*/;
+  std::size_t ds = 0 /*dynamicShared*/;
   dim3 g /*gridDim*/, b /*blockDim*/;
   cudaStream_t s = 0;
-};
-
-struct GLauncher : public Launcher {
-  GLauncher(std::size_t const s, std::size_t const _dev = 0)
-      : Launcher{dim3{}, dim3{}}, dev{_dev}, count{s} {
-    MKN_GPU_ASSERT(cudaGetDeviceProperties(&devProp, dev));
-
-    resize(s);
-  }
-
-  void resize(std::size_t const s, std::size_t const bx = 0) {
-    b.x = bx > 0 ? bx : cli.bx_threads();
-    g.x = s / b.x;
-    if ((s % b.x) > 0) ++g.x;
-  }
-
-  std::size_t dev = 0;
-  std::size_t count = 0;
-  cudaDeviceProp devProp;
-  mkn::gpu::Cli<cudaDeviceProp> cli{devProp};
 };
 
 }  // namespace MKN_GPU_NS

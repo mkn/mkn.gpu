@@ -76,6 +76,8 @@ std::uint32_t inline getWarpSize(size_t /*dev */ = 0) { return 1; }
 
 static std::uint32_t inline const warp_size = getWarpSize();
 
+std::size_t inline getMaxThreadsPerBlock(std::size_t const /*dev*/ = 0) { return 1024; }
+
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
 
@@ -163,6 +165,7 @@ void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
 }
 
 void inline sync() {}
+void inline sync(std::size_t const /*stream*/) {}
 
 }  // namespace MKN_GPU_NS
 

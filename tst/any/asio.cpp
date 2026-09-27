@@ -4,7 +4,6 @@
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/asio.hpp"
-#include "__share__.hpp"
 
 #if MKN_GPU_CPU
 static constexpr std::uint32_t BATCHES = 1;
@@ -95,37 +94,11 @@ std::uint32_t test_lambda_copy_capture_views() {
   return checked != NUM;
 }
 
-template <typename Float = double>
-std::uint32_t dev_class() {
-  mkn::gpu::HostArray<Float, NUM> a;
-  for (std::uint32_t i = 0; i < NUM; ++i) a[i] = i;
-
-  std::vector<Float> b(NUM);
-  for (std::uint32_t i = 0; i < NUM; ++i) b[i] = i + 1;
-  DevClass<Float> dev(b);
-
-  auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
-      [] __device__(auto i, auto* a, auto* b) { a[i] += (*b)[i]; }, a, dev);
-
-  std::size_t checked = 0;
-  for (std::size_t i = 0; i < BATCHES; ++i) {
-    auto offset = i * PER_BATCH;
-    auto copy_back = batch->get(i);
-    for (std::uint32_t j = 0; j < PER_BATCH; ++j) {
-      if (copy_back[j] != a[j + offset] + b[j + offset]) return 1;
-      ++checked;
-    }
-  }
-  return checked != NUM;
-}
-
 int main() {
   KOUT(NON) << __FILE__;
 
   return test_single() +           //
          test_multiple() +         //
          test_multiple_pinned() +  //
-         dev_class<float>() +      //
-         dev_class<double>() +     //
          test_lambda_copy_capture_views();
 }

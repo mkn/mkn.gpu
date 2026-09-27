@@ -28,7 +28,7 @@ std::uint32_t _test(L&& launcher) {
 
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
 
-  launcher(kernel, mem);
+  launcher(kernel, mem).sync();
 
   for (std::uint32_t i = 0; i < NUM; ++i)
     if (mem[i].f0 != mem[i].d0 + 1) return 1;
@@ -37,7 +37,7 @@ std::uint32_t _test(L&& launcher) {
 }
 
 std::uint32_t test() {
-  return _test(mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y});
+  return _test(mkn::gpu::GLauncher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y});
 }
 
 std::uint32_t test_guess() { return _test(mkn::gpu::GLauncher{NUM}); }
@@ -51,7 +51,7 @@ std::uint32_t _test_lambda_copy_capture_views(L&& launcher) {
   launcher([=] __device__() {
     auto i = mkn::gpu::idx();
     view[i].f0 = view[i].d0 + 1;
-  });
+  }).sync();
 
   for (std::uint32_t i = 0; i < NUM; ++i)
     if (view[i].f0 != view[i].d0 + 1) return 1;
@@ -60,11 +60,11 @@ std::uint32_t _test_lambda_copy_capture_views(L&& launcher) {
 }
 
 std::uint32_t test_lambda_copy_capture_views() {
-  return _test_lambda_copy_capture_views(mkn::gpu::GDLauncher{NUM});
+  return _test_lambda_copy_capture_views(mkn::gpu::DLauncher{NUM});
 }
 
 std::uint32_t test_lambda_ref_copy_capture_views() {
-  mkn::gpu::GDLauncher launcher{NUM};
+  mkn::gpu::DLauncher launcher{NUM};
 
   ManagedVector<S> mem{NUM};
   for (std::uint32_t i = 0; i < NUM; ++i) mem[i].d0 = i;
@@ -76,7 +76,7 @@ std::uint32_t test_lambda_ref_copy_capture_views() {
     view[i].f0 = view[i].d0 + 1;
   };
 
-  launcher(fn);
+  launcher(fn).sync();
 
   for (std::uint32_t i = 0; i < NUM; ++i)
     if (view[i].f0 != view[i].d0 + 1) return 1;
@@ -95,7 +95,7 @@ std::uint32_t test_zero() {
   mkn::gpu::DLauncher()([=] __device__() {
     mkn::gpu::fill_warp_size(view0, size, 0.0f);
     mkn::gpu::fill_warp_size(view1, size, 0.0f);
-  });
+  }).sync();
 
   for (std::uint32_t i = 0; i < size; ++i)
     if (mem0[i] + mem1[i] != 0) return 1;

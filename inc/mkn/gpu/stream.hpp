@@ -113,7 +113,7 @@ struct StreamDeviceFunction : StreamFunction<Strat> {
       : Super{strat, StreamFunctionMode::DEVICE_WAIT}, fn{fn_} {}
   void run(std::uint32_t const i) override {
     //
-    mkn::gpu::GDLauncher<false>{detail::deref(strat.datas[i]).size()}.stream(
+    mkn::gpu::DLauncher{detail::deref(strat.datas[i])}.stream(
         strat.streams[i], [=, fn = fn] __device__() mutable { fn(i); });
   }
 
@@ -229,7 +229,7 @@ struct AsyncStreamHostFunction : StreamFunction<Strat> {
       : Super{strat, StreamFunctionMode::HOST_WAIT}, fn{fn_} {}
   void run(std::uint32_t const i) override {
     fn(i);
-    strat.status[i] = SFS::WAIT;
+    strat.mark(i, SFS::WAIT);
   }
   Fn fn;
 };
@@ -247,6 +247,7 @@ struct StreamBarrierFunction : StreamFunction<Strat> {
 
   std::function<void()> on_completion = [&]() {
     for (auto& stat : strat.status) stat = SFS::WAIT;
+    strat.notify(/*all=*/true);
   };
 
   std::barrier<decltype(on_completion)> sync_point;
@@ -269,6 +270,7 @@ struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
       std::size_t const offset = self->group_size * group_id;
       for (std::size_t i = offset; i < offset + self->group_size; ++i)
         self->strat.status[i] = SFS::WAIT;
+      self->strat.notify(/*all=*/true);
     };
 
     std::barrier<decltype(on_completion)> sync_point{static_cast<std::int64_t>(self->group_size),
@@ -306,31 +308,49 @@ struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
   std::string_view constexpr static MOD_GROUP_ERROR =
       "mkn.gpu error: StreamHostGroupMutexFunction Group size must be a divisor of datas";
 
-  static auto make_mutices(Strat const& strat, std::size_t const& group_size) {
+  // items arriving while the group is held stay BUSY and are parked,
+  //  the holder re-queues them on release so no worker thread blocks
+  struct Group {
+    std::mutex mutex;
+    bool held = false;
+    std::vector<std::uint32_t> parked;
+  };
+
+  static auto make_groups(Strat const& strat, std::size_t const& group_size) {
     if (group_size == 0 || strat.datas.size() % group_size > 0)
       throw std::runtime_error(std::string{MOD_GROUP_ERROR});
     std::uint16_t const groups = strat.datas.size() / group_size;
-    return std::vector<std::mutex>{groups};
+    return std::vector<Group>(groups);
   }
 
   StreamHostGroupMutexFunction(std::size_t const gs, Strat& strat, Fn&& fn_)
-      : Super{gs, strat, StreamFunctionMode::HOST_WAIT},
-        fn{fn_},
-        mutices{make_mutices(strat, gs)} {}
+      : Super{gs, strat, StreamFunctionMode::HOST_WAIT}, fn{fn_}, groups{make_groups(strat, gs)} {}
 
   void run(std::uint32_t const i) override {
-    std::unique_lock<std::mutex> lock(mutices[Super::group_idx(i)], std::defer_lock);
-
-    if (lock.try_lock()) {
-      fn(i);
-      strat.status[i] = SFS::WAIT;  // done
-    } else {
-      strat.status[i] = SFS::SKIP;  // retry
+    auto& group = groups[Super::group_idx(i)];
+    {
+      std::lock_guard<std::mutex> lock(group.mutex);
+      if (group.held) {
+        group.parked.emplace_back(i);
+        return;
+      }
+      group.held = true;
     }
+
+    fn(i);
+
+    std::vector<std::uint32_t> parked;
+    {
+      std::lock_guard<std::mutex> lock(group.mutex);
+      group.held = false;
+      parked.swap(group.parked);
+    }
+    for (auto const& p : parked) strat.mark(p, SFS::FIRST);  // retry current step
+    strat.mark(i, SFS::WAIT);                                // done
   }
 
   Fn fn;
-  std::vector<std::mutex> mutices;
+  std::vector<Group> groups;
 };
 
 template <typename Strat, typename Fn>
@@ -349,7 +369,7 @@ struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
 
   void run(std::uint32_t const i) override {
     if (i % Super::group_size == gid) fn(i);
-    strat.status[i] = SFS::WAIT;  // done
+    strat.mark(i, SFS::WAIT);  // done
   }
 
   Fn fn;
@@ -373,13 +393,13 @@ struct StreamDeviceGroupIndexFunction : StreamGroupFunction<Strat> {
 
     if constexpr (is) {
       if (i % Super::group_size == gid and size)
-        mkn::gpu::GDLauncher<false>{size}.stream(strat.streams[i],
-                                                 [=, fn = fn] __device__() mutable { fn(i); });
+        mkn::gpu::DLauncher{size}.stream(strat.streams[i],
+                                         [=, fn = fn] __device__() mutable { fn(i); });
 
     } else {
       if (i % Super::group_size != gid and size)
-        mkn::gpu::GDLauncher<false>{size}.stream(strat.streams[i],
-                                                 [=, fn = fn] __device__() mutable { fn(i); });
+        mkn::gpu::DLauncher{size}.stream(strat.streams[i],
+                                         [=, fn = fn] __device__() mutable { fn(i); });
     }
   }
 
@@ -395,18 +415,16 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   using Super::events;
   using Super::fns;
 
-  constexpr static std::size_t wait_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_;
-  constexpr static std::size_t wait_add_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_ADD_;
-  constexpr static std::size_t wait_max_ms = _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_MAX_;
-
   ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 0,
                          std::size_t const device = 0)
-      : Super{datas}, n_threads{_n_threads}, device_id{device} {
+      : Super{datas}, n_threads{_n_threads}, device_id{device}, status(datas.size()) {
     thread_status.resize(_n_threads + 1, SFP::NEXT);
-    status.resize(datas.size(), SFS::FIRST);
+    for (auto& s : status) s = SFS::FIRST;
   }
 
-  ~ThreadedStreamLauncher() { join(); }
+  ~ThreadedStreamLauncher() {
+    if (fns.size()) join();
+  }
 
   template <typename Fn>
   This& host(Fn&& fn) {
@@ -439,7 +457,21 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     return *this;
   }
 
-  void static finished_callback(This& self, std::uint32_t const i) { self.status[i] = SFS::WAIT; }
+  void static finished_callback(This& self, std::uint32_t const i) { self.mark(i, SFS::WAIT); }
+
+  // status writes outside of get_work are only made on BUSY items, by their current owner
+  void mark(std::size_t const i, SFS const s) {
+    status[i] = s;
+    notify();
+  }
+
+  void notify(bool const all = false) {
+    ++epoch;
+    if (all)
+      epoch.notify_all();
+    else
+      epoch.notify_one();
+  }
 
   auto& operator()() { return join(); }
   Super& super() { return *this; }
@@ -454,18 +486,16 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   void thread_fn(std::size_t const /*tid*/) {
     mkn::gpu::setDevice(device_id);
-    std::size_t waitms = wait_ms;
     while (!done) {
+      auto const e = epoch.load();  // before get_work, so no change during the scan is missed
       auto const& [ts, idx] = get_work();
 
       if (ts == SFP::WORK) {
-        waitms = wait_ms;
         super(idx);
         continue;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(waitms));
-      waitms = waitms >= wait_max_ms ? wait_max_ms : waitms + wait_add_ms;
+      if (!done) epoch.wait(e);
     }
   }
 
@@ -476,40 +506,38 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   }
 
   std::pair<SFP, std::size_t> get_work() {
-    std::unique_lock<std::mutex> lock(work_, std::defer_lock);
+    std::lock_guard<std::mutex> lock(work_);
 
-    if (not lock.try_lock()) return std::make_pair(SFP::SKIP, 0);
-
-    for (; work_i < datas.size(); ++work_i) {
+    // one full pass starting after the last item handed out
+    for (std::size_t n = 0; n < datas.size(); ++n) {
       auto const i = work_i;
-      if (status[i] == SFS::FIN || status[i] == SFS::BUSY) continue;
+      work_i = (work_i + 1) % datas.size();
 
-      if (status[i] == SFS::SKIP) {
-        status[i] = SFS::FIRST;
-        continue;
-      }
+      auto const s = status[i].load();
+      if (s == SFS::FIN || s == SFS::BUSY) continue;
 
-      if (status[i] == SFS::FIRST) {
+      if (s == SFS::FIRST) {
         status[i] = SFS::BUSY;
         return std::make_pair(SFP::WORK, i);
       }
 
       if (!is_fn_finished(i)) continue;
 
-      if (status[i] == SFS::WAIT) {
-        ++step[i];
+      ++step[i];
 
-        if (Super::is_finished(i)) {
-          status[i] = SFS::FIN;
-          continue;
-        }
-
-        status[i] = SFS::BUSY;
-        return std::make_pair(SFP::WORK, i);
+      if (Super::is_finished(i)) {
+        status[i] = SFS::FIN;
+        continue;
       }
+
+      status[i] = SFS::BUSY;
+      return std::make_pair(SFP::WORK, i);
     }
-    work_i = 0;
-    if (check_finished()) done = 1;
+
+    if (check_finished()) {
+      done = 1;
+      notify(/*all=*/true);
+    }
     return std::make_pair(SFP::SKIP, 0);
   }
 
@@ -563,7 +591,8 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   std::vector<std::thread> threads;
 
   std::mutex work_;
-  std::vector<SFS> status;
+  std::vector<std::atomic<SFS>> status;
+  std::atomic<std::uint32_t> epoch = 0;
   std::vector<SFP> thread_status;
   std::vector<std::uint16_t>& step = Super::data_step;
 

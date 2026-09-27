@@ -17,7 +17,7 @@ uint32_t test() {
   for (uint32_t i = 0; i < NUM; i++) hostB[i] = i;
   for (uint32_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;
   mkn::gpu::cuda::DeviceMem<Float> devA(NUM), devB(hostB), devC(hostC);
-  mkn::gpu::cuda::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
+  mkn::gpu::cuda::GLauncher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(
       vectoradd<Float>, devA, devB, devC);
   auto hostA = devA();
   for (uint32_t i = 0; i < NUM; i++)

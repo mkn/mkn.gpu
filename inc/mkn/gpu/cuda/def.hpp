@@ -50,6 +50,12 @@ std::uint32_t inline getWarpSize(size_t dev = 0) {
 
 static std::uint32_t inline const warp_size = getWarpSize();
 
+std::size_t inline getMaxThreadsPerBlock(std::size_t const dev = 0) {
+  int threads = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&threads, cudaDevAttrMaxThreadsPerBlock, dev));
+  return threads;
+}
+
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
   MKN_GPU_ASSERT(cudaDeviceGetLimit(&bytes, cudaLimitMallocHeapSize));

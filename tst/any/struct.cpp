@@ -19,7 +19,7 @@ uint32_t test() {
   std::vector<S> host{NUM};
   for (uint32_t i = 0; i < NUM; ++i) host[i].d0 = i;
   mkn::gpu::DeviceMem<S> dev{host};
-  mkn::gpu::Launcher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(kernel, dev);
+  mkn::gpu::GLauncher{WIDTH, HEIGHT, THREADS_PER_BLOCK_X, THREADS_PER_BLOCK_Y}(kernel, dev);
   for (auto const& s : dev())
     if (s.f0 != s.d0 + 1) return 1;
   return 0;
