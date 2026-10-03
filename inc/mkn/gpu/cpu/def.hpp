@@ -86,6 +86,14 @@ auto inline getLimitMallocHeapSize() {
 
 void inline setLimitMallocHeapSize(std::size_t const& /*bytes*/) {}
 
+auto inline getLimitStackSize() {
+  std::size_t bytes = 0;
+
+  return bytes;
+}
+
+void inline setLimitStackSize(std::size_t const& /*bytes*/) {}
+
 void inline setDevice(std::size_t const& /*dev*/) {} /*noop*/
 
 template <typename Size>

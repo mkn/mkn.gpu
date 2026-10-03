@@ -68,6 +68,16 @@ void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitMallocHeapSize, bytes));
 }
 
+auto inline getLimitStackSize() {
+  std::size_t bytes = 0;
+  MKN_GPU_ASSERT(hipDeviceGetLimit(&bytes, hipLimitStackSize));
+  return bytes;
+}
+
+void inline setLimitStackSize(std::size_t const& bytes) {
+  MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitStackSize, bytes));
+}
+
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(hipSetDevice(dev)); }
 
 void inline sync() { MKN_GPU_ASSERT(hipDeviceSynchronize()); }

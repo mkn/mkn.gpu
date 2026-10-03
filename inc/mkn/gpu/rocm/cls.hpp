@@ -61,10 +61,22 @@ template <typename T>
 struct Pointer {
   Pointer(T* _t) : t{_t} {
     if (!t) throw std::runtime_error("invalid nullptr");
+#if HIP_VERSION_MAJOR >= 6
     MKN_GPU_ASSERT(hipPointerGetAttributes(&attributes, t));
+#else
+    // unregistered host memory is an error before ROCm 6, type stays hipMemoryTypeHost (0)
+    if (auto const ret = hipPointerGetAttributes(&attributes, t); ret == hipErrorInvalidValue)
+      (void)hipGetLastError();  // clear
+    else
+      MKN_GPU_ASSERT(ret);
+#endif
   }
   bool is_host_ptr() const {
+#if HIP_VERSION_MAJOR >= 6
     return type() == hipMemoryTypeUnregistered || type() == hipMemoryTypeHost;
+#else
+    return type() == hipMemoryTypeHost;
+#endif
   }
   bool is_device_ptr() const {
     return type() == hipMemoryTypeDevice || type() == hipMemoryTypeArray;
@@ -75,7 +87,7 @@ struct Pointer {
   auto type() const { return attributes.type; }
 
   T* t;
-  hipPointerAttribute_t attributes;
+  hipPointerAttribute_t attributes{};
 };
 
 #include "mkn/gpu/any/inc/alloc.ipp"
