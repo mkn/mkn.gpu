@@ -66,6 +66,16 @@ void inline setLimitMallocHeapSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitMallocHeapSize, bytes));
 }
 
+auto inline getLimitStackSize() {
+  std::size_t bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetLimit(&bytes, cudaLimitStackSize));
+  return bytes;
+}
+
+void inline setLimitStackSize(std::size_t const& bytes) {
+  MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitStackSize, bytes));
+}
+
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
 
 void inline sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
