@@ -51,8 +51,31 @@ struct dim3 {
 
   std::size_t x = 1, y = 1, z = 1;
 };
-dim3 static inline threadIdx, blockIdx;
+// thread_local: host threads (e.g. one per stream) run kernels concurrently
+dim3 static inline thread_local threadIdx, blockIdx, blockDim, gridDim;
 #endif  // MKN_CPU_DO_NOT_DEFINE_DIM3
+
+// a pseudo gpu block runs its threads one after the other, so plain updates are atomic
+template <typename T>
+T atomicAdd(T* const address, T const value) {
+  T const old = *address;
+  *address += value;
+  return old;
+}
+
+template <typename T>
+T atomicSub(T* const address, T const value) {
+  T const old = *address;
+  *address -= value;
+  return old;
+}
+
+template <typename T>
+T atomicCAS(T* const address, T const compare, T const value) {
+  T const old = *address;
+  if (old == compare) *address = value;
+  return old;
+}
 
 namespace MKN_GPU_NS {
 

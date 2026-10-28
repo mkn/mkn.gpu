@@ -5,11 +5,7 @@
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/asio.hpp"
 
-#if MKN_GPU_CPU
-static constexpr std::uint32_t BATCHES = 1;
-#else
 static constexpr std::uint32_t BATCHES = 2;
-#endif
 static constexpr std::uint32_t NUM = 1024 * 1024 * BATCHES;
 static constexpr std::uint32_t PER_BATCH = NUM / BATCHES;
 static constexpr std::uint32_t TP_BLOCK = 1024;

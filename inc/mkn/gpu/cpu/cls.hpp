@@ -59,20 +59,25 @@ static thread_local std::size_t idx = 0;
 
 template <bool _sync = true, typename F, typename... Args>
 void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
-  std::size_t N = (g.x * g.y * g.z) * (b.x * b.y * b.z);
-  KLOG(TRC) << N;
+  KLOG(TRC) << (g.x * g.y * g.z) * (b.x * b.y * b.z);
+  gridDim = g;
+  blockDim = b;
   std::apply(
       [&](auto&&... params) {
-        for (std::size_t i = 0; i < N; ++i) {
-          f(params...);
-          ++blockIdx.x;
-          ++detail::idx;
-        }
+        for (blockIdx.z = 0; blockIdx.z < g.z; ++blockIdx.z)
+          for (blockIdx.y = 0; blockIdx.y < g.y; ++blockIdx.y)
+            for (blockIdx.x = 0; blockIdx.x < g.x; ++blockIdx.x)
+              for (threadIdx.z = 0; threadIdx.z < b.z; ++threadIdx.z)
+                for (threadIdx.y = 0; threadIdx.y < b.y; ++threadIdx.y)
+                  for (threadIdx.x = 0; threadIdx.x < b.x; ++threadIdx.x) {
+                    f(params...);
+                    ++detail::idx;
+                  }
       },
       devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
 
   detail::idx = 0;
-  blockIdx.x = 0;
+  blockIdx = threadIdx = dim3{0, 0, 0};
 }
 
 // launch dimensions and native stream, see GlobalLauncher/DeviceLauncher
