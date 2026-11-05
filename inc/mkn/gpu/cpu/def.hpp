@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cpu
@@ -81,6 +82,15 @@ std::size_t inline getMaxThreadsPerBlock(std::size_t const /*dev*/ = 0) { return
 
 // launches run one element per block, see launch in cpu/cls.hpp
 std::size_t inline getKernelMaxThreadsPerBlock(void const* const /*f*/) { return 1; }
+
+// shared memory is host memory, no limit to opt in to
+std::size_t inline getMaxSharedMemoryPerBlock(std::size_t const /*dev*/ = 0) {
+  return std::numeric_limits<std::size_t>::max();
+}
+std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
+  return getMaxSharedMemoryPerBlock(dev);
+}
+void inline setKernelMaxDynamicSharedMemory(void const* const /*f*/, std::size_t const /*bytes*/) {}
 
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
@@ -178,6 +188,14 @@ void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
 
 void inline sync() {}
 void inline sync(std::size_t const /*stream*/) {}
+
+// managed memory is host memory, nothing to migrate
+template <typename T, typename Size>
+void prefetch(T const* /*p*/, Size /*size*/, std::size_t const /*dev*/ = 0,
+              std::size_t const /*stream*/ = 0) {}
+
+template <typename T, typename Size>
+void prefetch_host(T const* /*p*/, Size /*size*/, std::size_t const /*stream*/ = 0) {}
 
 }  // namespace MKN_GPU_NS
 

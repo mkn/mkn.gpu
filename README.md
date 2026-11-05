@@ -38,9 +38,9 @@ What happens:
 
 A plain `std::vector` cannot be passed to a launch directly, its memory is on the host only.
 
-`DLauncher{N}` guesses the launch from the size: blocks of the device maximum (or
-`MKN_GPU_BX_THREADS`), reduced to the kernel's own limit when its register or shared memory use
-is high, and enough blocks to cover `N`. Each element runs once, `idx()` is its index.
+`DLauncher{N}` guesses the launch from the size: blocks of the device maximum, reduced to the
+kernel's own limit when its register or shared memory use is high, and enough blocks to cover
+`N`. Each element runs once, `idx()` is its index.
 
 On the CPU backend the same code runs on the host: `DeviceMem` and managed memory are host memory
 and the lambda runs once per element in a loop.

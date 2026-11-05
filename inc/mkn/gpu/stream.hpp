@@ -451,7 +451,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 0,
                          std::size_t const device = 0)
-      : Super{datas}, n_threads{_n_threads}, device_id{device}, status(datas.size()) {
+      : Super{datas},
+        n_threads{_n_threads},
+        device_id{device},
+        status(datas.size()),
+        chain_begin(datas.size(), 0) {
     thread_status.resize(_n_threads + 1, SFP::NEXT);
     for (auto& s : status) s = SFS::FIRST;
   }
@@ -514,8 +518,27 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   bool is_fn_finished(std::uint32_t const i) {
     auto const b = status[i] == SFS::WAIT;
-    if (b) super().times[(i * fns.size()) + step[i]].stop();
+    if (b)  // a chain of device steps finishes together
+      for (std::size_t s = chain_begin[i]; s <= step[i]; ++s)
+        super().times[(i * fns.size()) + s].stop();
     return b;
+  }
+
+  // consecutive device steps are already ordered by the item's stream, they are queued together
+  //  and only the last waits for completion, rather than one callback and hand off per step
+  void run(std::size_t const i) {
+    auto& s = step[i];  // the item is BUSY, owned by this thread
+    chain_begin[i] = s;
+    while (std::size_t{s} + 1 < fns.size() && fns[s]->mode == StreamFunctionMode::DEVICE_WAIT &&
+           fns[s + 1]->mode == StreamFunctionMode::DEVICE_WAIT) {
+      super().times[(i * fns.size()) + s].start();
+      {
+        trace::Range range{super().labels[s].c_str(), static_cast<std::int64_t>(i)};
+        fns[s]->run(i);
+      }
+      ++s;
+    }
+    super(i);  // the last or only step, device steps attach the completion callback
   }
 
   void thread_fn(std::size_t const /*tid*/) {
@@ -525,7 +548,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
       auto const& [ts, idx] = get_work();
 
       if (ts == SFP::WORK) {
-        super(idx);
+        run(idx);
         continue;
       }
 
@@ -630,6 +653,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   std::atomic<std::uint32_t> epoch = 0;
   std::vector<SFP> thread_status;
   std::vector<std::uint16_t>& step = Super::data_step;
+  std::vector<std::uint16_t> chain_begin;  // first step of the device chain each item is running
 
  private:
   bool joined = false, started = false;

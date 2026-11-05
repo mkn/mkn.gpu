@@ -40,6 +40,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu/rocm/api.hpp"
 #include "mkn/gpu/rocm/cls.hpp"
 
+#include <mutex>
+#include <unordered_map>
+
 namespace MKN_GPU_NS {
 
 #include "mkn/gpu/any/inc/launchers.ipp"

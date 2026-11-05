@@ -44,6 +44,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstring>
 #include <algorithm>
 
+#include <mutex>
+#include <unordered_map>
+
 namespace MKN_GPU_NS {
 
 template <typename Container, typename T>

@@ -64,6 +64,26 @@ std::size_t inline getKernelMaxThreadsPerBlock(void const* const f) {
   return attr.maxThreadsPerBlock;
 }
 
+// dynamic shared memory per block a kernel gets without opting in
+std::size_t inline getMaxSharedMemoryPerBlock(std::size_t const dev = 0) {
+  int bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&bytes, cudaDevAttrMaxSharedMemoryPerBlock, dev));
+  return bytes;
+}
+
+// most dynamic shared memory per block a kernel can opt in to, see setKernelMaxDynamicSharedMemory
+std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
+  int bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&bytes, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev));
+  return bytes;
+}
+
+// allows launches of kernel f with up to bytes of dynamic shared memory
+void inline setKernelMaxDynamicSharedMemory(void const* const f, std::size_t const bytes) {
+  MKN_GPU_ASSERT(cudaFuncSetAttribute(f, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                      static_cast<int>(bytes)));
+}
+
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
   MKN_GPU_ASSERT(cudaDeviceGetLimit(&bytes, cudaLimitMallocHeapSize));
@@ -162,6 +182,33 @@ template <typename T, typename Size>
 void take_async(T const* p, T* t, cudaStream_t& stream, Size size = 1) {
   KLOG(TRC);
   MKN_GPU_ASSERT(cudaMemcpyAsync(t, p, size * sizeof(T), cudaMemcpyDeviceToHost, stream));
+}
+
+// migrate managed memory to device dev ahead of its use there, asynchronous on stream
+template <typename T, typename Size>
+void prefetch(T const* p, Size size, std::size_t const dev = 0, cudaStream_t stream = 0) {
+  KLOG(TRC);
+#if CUDART_VERSION >= 13000
+  cudaMemLocation location{};
+  location.type = cudaMemLocationTypeDevice;
+  location.id = static_cast<int>(dev);
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), location, 0, stream));
+#else
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), static_cast<int>(dev), stream));
+#endif
+}
+
+// migrate managed memory to the host ahead of its use there, asynchronous on stream
+template <typename T, typename Size>
+void prefetch_host(T const* p, Size size, cudaStream_t stream = 0) {
+  KLOG(TRC);
+#if CUDART_VERSION >= 13000
+  cudaMemLocation location{};
+  location.type = cudaMemLocationTypeHost;
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), location, 0, stream));
+#else
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), cudaCpuDeviceId, stream));
+#endif
 }
 
 }  // namespace MKN_GPU_NS

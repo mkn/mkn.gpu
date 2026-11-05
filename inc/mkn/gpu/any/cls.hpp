@@ -18,11 +18,17 @@ std::size_t inline clamp_bx_threads(std::size_t const cap, std::size_t const ker
   return kernel_max;
 }
 
+// blocks of bx covering size
+std::size_t inline guess_blocks(std::size_t const size, std::size_t const bx) {
+  if (bx == 0) throw std::invalid_argument("mkn.gpu error: guessed launch block size is 0");
+  return size / bx + (size % bx > 0);
+}
+
 // grid dimension for guessed launches covering size with blocks of bx, the launch must fit in 32
 //  bits, idx() is 32 bit by default and HIP limits a launch to 2^32 - 1 threads
 std::size_t inline guess_grid_dim(std::size_t const size, std::size_t const bx) {
-  auto const blocks = size / bx + (size % bx > 0);
-  if (blocks * bx > std::numeric_limits<std::uint32_t>::max())
+  auto const blocks = guess_blocks(size, bx);
+  if (blocks > std::numeric_limits<std::uint32_t>::max() / bx)  // blocks * bx could wrap
     throw std::invalid_argument("mkn.gpu error: guessed launch size " + std::to_string(size) +
                                 " with block size " + std::to_string(bx) +
                                 " exceeds 32 bit indexing");

@@ -56,11 +56,33 @@ std::size_t inline max_threads_per_block(std::size_t const dev) {
 template <typename T>
 concept span_like = mkn::kul::is_span_like_v<std::decay_t<T>>;
 
+// dynamic shared memory per block without opting in, cached per thread and device
+std::size_t inline max_shared_per_block(std::size_t const dev) {
+  thread_local std::vector<std::size_t> cache;
+  if (cache.size() <= dev) cache.resize(dev + 1, 0);
+  if (cache[dev] == 0) cache[dev] = getMaxSharedMemoryPerBlock(dev);
+  return cache[dev];
+}
+
+// launches of kernel f asking for more dynamic shared memory than the default limit opt it in,
+//  once per kernel and size; beyond the opt-in maximum the launch itself reports the error
+void inline fit_shared(void const* const f, std::size_t const bytes, std::size_t const dev = 0) {
+  if (bytes <= max_shared_per_block(dev)) return;
+  static std::mutex mutex;
+  static std::unordered_map<void const*, std::size_t> granted;
+  std::lock_guard<std::mutex> lock{mutex};
+  auto& have = granted[f];
+  if (have >= bytes) return;
+  setKernelMaxDynamicSharedMemory(f, bytes);
+  have = bytes;
+}
+
 }  // namespace detail
 
 // most threads per block a launch of kernel can use, queried once per kernel on the device that
 //  is current at the first call, the same kernel must not then be launched on a device of
-//  another architecture
+//  another architecture. Callers using several architectures keep their own value per device,
+//  e.g. a static std::vector of getKernelMaxThreadsPerBlock with each device set in turn
 template <auto kernel>
 std::size_t kernel_bx_threads() {
   static std::size_t const max = getKernelMaxThreadsPerBlock(reinterpret_cast<void const*>(kernel));
@@ -92,10 +114,11 @@ std::size_t device_kernel_bx_threads() {
 }
 
 // most threads per block for the kernel a DLauncher<Mode> generates to launch fn(args...)
+//  F keeps its const as DLauncher's does, a const and a non const functor are different kernels
 template <typename Mode = Guess, typename F, typename... Args>
-std::size_t getDeviceKernelMaxThreadsPerBlock(F const&, Args&&... args) {
+std::size_t getDeviceKernelMaxThreadsPerBlock(F&&, Args&&... args) {
   return [&]<typename... PArgs>(std::tuple<PArgs&...>*) {
-    return device_kernel_bx_threads<Mode, F, PArgs...>();
+    return device_kernel_bx_threads<Mode, std::remove_reference_t<F>, PArgs...>();
   }(detail::as_values(args...));
 }
 
@@ -109,7 +132,7 @@ struct ALauncher : public Launcher {
     requires(guess)
       : Launcher{dim3{}, dim3{}}, count{size} {
     bx_cap = detail::max_threads_per_block(dev);
-    set_bx(bx_cap);
+    set_bx(bx_cap);  // the size is checked at launch, against the final block size
   }
 
   template <detail::span_like C>
@@ -153,7 +176,12 @@ struct ALauncher : public Launcher {
  protected:
   void set_bx(std::size_t const bx) {
     b.x = bx;
-    g.x = mkn::gpu::guess_grid_dim(count, bx);
+    g.x = mkn::gpu::guess_blocks(count, bx);
+  }
+
+  // before a guessed launch, the grid of the final block size must fit in 32 bits
+  void check() {
+    if constexpr (guess) g.x = mkn::gpu::guess_grid_dim(count, b.x);
   }
 
   // guessed launches are limited by the kernel's own maximum block size, which can be below the
@@ -181,6 +209,8 @@ struct GlobalLauncher : public ALauncher<Mode> {
   template <typename F, typename... Args>
   auto& operator()(F&& f, Args&&... args) {
     if (this->empty()) return *this;
+    this->check();
+    detail::fit_shared(reinterpret_cast<void const*>(+f), this->ds);
     MKN_GPU_NS::launch<false>(std::forward<F>(f), this->g, this->b, this->ds, this->s, args...);
     return *this;
   }
@@ -216,9 +246,12 @@ struct DeviceLauncher : public ALauncher<Mode> {
   void _launch(F& f, std::tuple<PArgs&...>*, Args&&... args) {
     if constexpr (Super::guess) {
       this->fit(device_kernel_bx_threads<Guess, F, PArgs...>());
+      this->check();
+      detail::fit_shared(reinterpret_cast<void const*>(&global_gd_kernel<F, PArgs...>), this->ds);
       MKN_GPU_NS::launch<false>(&global_gd_kernel<F, PArgs...>, this->g, this->b, this->ds, this->s,
                                 f, this->count, args...);
     } else {
+      detail::fit_shared(reinterpret_cast<void const*>(&global_d_kernel<F, PArgs...>), this->ds);
       MKN_GPU_NS::launch<false>(&global_d_kernel<F, PArgs...>, this->g, this->b, this->ds, this->s,
                                 f, args...);
     }

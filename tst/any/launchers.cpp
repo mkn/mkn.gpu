@@ -1,5 +1,6 @@
 #include "mkn/gpu.hpp"
 
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 
@@ -70,13 +71,36 @@ std::uint32_t test_fixed_rejects_indivisible() {
   return 1;
 }
 
+// throws on launch, not construction, so a smaller block from .bx() is checked instead
 std::uint32_t test_guess_rejects_over_32_bit() {
+  GLauncher launcher{std::size_t{1} << 32};
   try {
-    GLauncher{std::size_t{1} << 32};  // no allocation, the launcher only
+    launcher(kernel, static_cast<float*>(nullptr), std::size_t{0});  // throws before launching
   } catch (std::invalid_argument const&) {
     return 0;
   }
   return 1;
+}
+
+template <typename F>
+bool throws(F&& f) {
+  try {
+    f();
+  } catch (std::invalid_argument const&) {
+    return true;
+  }
+  return false;
+}
+
+std::uint32_t test_guess_grid_dim() {
+  std::size_t constexpr max = std::numeric_limits<std::uint32_t>::max();
+  if (guess_grid_dim(1000, 256) != 4) return 1;
+  if (guess_grid_dim(max - 511, 128) != (max - 511) / 128) return 1;  // fits with 128
+  if (!throws([] { guess_grid_dim(max - 511, 1024); })) return 1;     // not with 1024
+  if (!throws([] { guess_grid_dim(std::numeric_limits<std::size_t>::max(), 1024); }))
+    return 1;                                           // no wrap
+  if (!throws([] { guess_grid_dim(1, 0); })) return 1;  // no division by 0
+  return 0;
 }
 
 std::uint32_t test_clamp_bx_threads() {
@@ -112,6 +136,7 @@ int main() {
          test_empty() +                      //
          test_fixed_rejects_indivisible() +  //
          test_guess_rejects_over_32_bit() +  //
+         test_guess_grid_dim() +             //
          test_clamp_bx_threads() +           //
          test_guess_clamped();
 }
