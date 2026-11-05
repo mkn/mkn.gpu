@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CUDA_DEF_HPP_
-#define _MKN_GPU_CUDA_DEF_HPP_
+#ifndef MKN_GPU_CUDA_DEF_HPP
+#define MKN_GPU_CUDA_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
@@ -78,7 +78,15 @@ std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
   return bytes;
 }
 
-// allows launches of kernel f with up to bytes of dynamic shared memory
+// dynamic shared memory per block kernel f can be launched with on the current device, below
+//  the device default when f uses static shared memory, raised by setKernelMaxDynamicSharedMemory
+std::size_t inline getKernelMaxDynamicSharedMemory(void const* const f) {
+  cudaFuncAttributes attr{};
+  MKN_GPU_ASSERT(cudaFuncGetAttributes(&attr, f));
+  return attr.maxDynamicSharedSizeBytes;
+}
+
+// allows launches of kernel f on the current device with up to bytes of dynamic shared memory
 void inline setKernelMaxDynamicSharedMemory(void const* const f, std::size_t const bytes) {
   MKN_GPU_ASSERT(cudaFuncSetAttribute(f, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                       static_cast<int>(bytes)));
@@ -102,6 +110,12 @@ auto inline getLimitStackSize() {
 
 void inline setLimitStackSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitStackSize, bytes));
+}
+
+std::size_t inline getDevice() {
+  int dev = 0;
+  MKN_GPU_ASSERT(cudaGetDevice(&dev));
+  return dev;
 }
 
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
@@ -213,4 +227,4 @@ void prefetch_host(T const* p, Size size, cudaStream_t stream = 0) {
 
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_CUDA_DEF_HPP_*/
+#endif /*MKN_GPU_CUDA_DEF_HPP*/

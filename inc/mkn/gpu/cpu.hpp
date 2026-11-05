@@ -29,8 +29,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 // IWYU pragma: private, include "mkn/gpu.hpp"
-#ifndef _MKN_PSUEDO_GPU_HPP_
-#define _MKN_PSUEDO_GPU_HPP_
+#ifndef MKN_GPU_CPU_HPP
+#define MKN_GPU_CPU_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
@@ -45,7 +45,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 
 #include <mutex>
-#include <unordered_map>
+#include <map>
 
 namespace MKN_GPU_NS {
 
@@ -94,4 +94,4 @@ static void global_d_kernel(F& f, Args... args) {
 } /* namespace MKN_GPU_NS */
 
 #undef MKN_GPU_ASSERT
-#endif /* _MKN_PSUEDO_GPU_HPP_ */
+#endif /* MKN_GPU_CPU_HPP */

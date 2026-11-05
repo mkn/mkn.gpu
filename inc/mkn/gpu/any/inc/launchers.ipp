@@ -28,8 +28,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_LAUNCHERS_HPP_
-#define _MKN_GPU_LAUNCHERS_HPP_
+#ifndef MKN_GPU_ANY_INC_LAUNCHERS_IPP
+#define MKN_GPU_ANY_INC_LAUNCHERS_IPP
 
 namespace detail {
 
@@ -56,25 +56,20 @@ std::size_t inline max_threads_per_block(std::size_t const dev) {
 template <typename T>
 concept span_like = mkn::kul::is_span_like_v<std::decay_t<T>>;
 
-// dynamic shared memory per block without opting in, cached per thread and device
-std::size_t inline max_shared_per_block(std::size_t const dev) {
-  thread_local std::vector<std::size_t> cache;
-  if (cache.size() <= dev) cache.resize(dev + 1, 0);
-  if (cache[dev] == 0) cache[dev] = getMaxSharedMemoryPerBlock(dev);
-  return cache[dev];
-}
-
-// launches of kernel f asking for more dynamic shared memory than the default limit opt it in,
-//  once per kernel and size; beyond the opt-in maximum the launch itself reports the error
-void inline fit_shared(void const* const f, std::size_t const bytes, std::size_t const dev = 0) {
-  if (bytes <= max_shared_per_block(dev)) return;
+// launches of kernel f asking for more dynamic shared memory than it allows on the current device
+//  opt it in; the kernel's own limit accounts for its static shared memory and the attribute is
+//  per device, so both are kept per kernel and device. Beyond the opt-in maximum the launch
+//  itself reports the error
+void inline fit_shared(void const* const f, std::size_t const bytes) {
+  if (bytes == 0) return;
   static std::mutex mutex;
-  static std::unordered_map<void const*, std::size_t> granted;
+  static std::map<std::pair<void const*, std::size_t>, std::size_t> allowed;
   std::lock_guard<std::mutex> lock{mutex};
-  auto& have = granted[f];
-  if (have >= bytes) return;
+  auto const [it, fresh] = allowed.try_emplace({f, getDevice()}, 0);
+  if (fresh) it->second = getKernelMaxDynamicSharedMemory(f);
+  if (bytes <= it->second) return;
   setKernelMaxDynamicSharedMemory(f, bytes);
-  have = bytes;
+  it->second = bytes;
 }
 
 }  // namespace detail
@@ -289,4 +284,4 @@ MKN_GPU_LAUNCHER_DEDUCTION_GUIDES(DLauncher)
 
 #undef MKN_GPU_LAUNCHER_DEDUCTION_GUIDES
 
-#endif /* _MKN_GPU_LAUNCHERS_HPP_ */
+#endif /* MKN_GPU_ANY_INC_LAUNCHERS_IPP */

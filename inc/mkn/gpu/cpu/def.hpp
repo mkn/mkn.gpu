@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CPU_DEF_HPP_
-#define _MKN_GPU_CPU_DEF_HPP_
+#ifndef MKN_GPU_CPU_DEF_HPP
+#define MKN_GPU_CPU_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/assert.hpp"
@@ -90,6 +90,9 @@ std::size_t inline getMaxSharedMemoryPerBlock(std::size_t const /*dev*/ = 0) {
 std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
   return getMaxSharedMemoryPerBlock(dev);
 }
+std::size_t inline getKernelMaxDynamicSharedMemory(void const* const /*f*/) {
+  return getMaxSharedMemoryPerBlock();
+}
 void inline setKernelMaxDynamicSharedMemory(void const* const /*f*/, std::size_t const /*bytes*/) {}
 
 auto inline getLimitMallocHeapSize() {
@@ -108,6 +111,7 @@ auto inline getLimitStackSize() {
 
 void inline setLimitStackSize(std::size_t const& /*bytes*/) {}
 
+std::size_t inline getDevice() { return 0; }
 void inline setDevice(std::size_t const& /*dev*/) {} /*noop*/
 
 template <typename Size>
@@ -199,4 +203,4 @@ void prefetch_host(T const* /*p*/, Size /*size*/, std::size_t const /*stream*/ =
 
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_CPU_DEF_HPP_*/
+#endif /*MKN_GPU_CPU_DEF_HPP*/

@@ -28,8 +28,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_HPP_
-#define _MKN_GPU_HPP_
+#ifndef MKN_GPU_HPP
+#define MKN_GPU_HPP
 
 #include "mkn/gpu/def.hpp"
 
@@ -65,4 +65,4 @@ __device__ uint32_t inline idx() {
 
 } /* namespace mkn::gpu */
 
-#endif /* _MKN_GPU_HPP_ */
+#endif /* MKN_GPU_HPP */

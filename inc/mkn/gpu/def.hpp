@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_DEF_HPP_
-#define _MKN_GPU_DEF_HPP_
+#ifndef MKN_GPU_DEF_HPP
+#define MKN_GPU_DEF_HPP
 
 #include <type_traits>
 
@@ -80,4 +80,4 @@ static constexpr bool is_floating_point_v =
 
 } /* namespace mkn::gpu */
 
-#endif /*_MKN_GPU_DEF_HPP_*/
+#endif /*MKN_GPU_DEF_HPP*/

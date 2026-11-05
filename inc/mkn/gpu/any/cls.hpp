@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_ANY_CLS_HPP_
-#define _MKN_GPU_ANY_CLS_HPP_
+#ifndef MKN_GPU_ANY_CLS_HPP
+#define MKN_GPU_ANY_CLS_HPP
 
 #include <limits>
 #include <string>
@@ -45,4 +45,4 @@ std::size_t inline grid_dim(std::size_t const size, std::size_t const threads) {
 
 } /* namespace mkn::gpu */
 
-#endif /*_MKN_GPU_ANY_CLS_HPP_*/
+#endif /*MKN_GPU_ANY_CLS_HPP*/

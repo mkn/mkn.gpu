@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_ROCM_DEF_HPP_
-#define _MKN_GPU_ROCM_DEF_HPP_
+#ifndef MKN_GPU_ROCM_DEF_HPP
+#define MKN_GPU_ROCM_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
@@ -80,10 +80,18 @@ std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
   return bytes;
 }
 
-// allows launches of kernel f with up to bytes of dynamic shared memory
+// dynamic shared memory per block kernel f can be launched with on the current device, below
+//  the device default when f uses static shared memory, raised by setKernelMaxDynamicSharedMemory
+std::size_t inline getKernelMaxDynamicSharedMemory(void const* const f) {
+  hipFuncAttributes attr{};
+  MKN_GPU_ASSERT(hipFuncGetAttributes(&attr, f));
+  return attr.maxDynamicSharedSizeBytes;
+}
+
+// allows launches of kernel f on the current device with up to bytes of dynamic shared memory
 void inline setKernelMaxDynamicSharedMemory(void const* const f, std::size_t const bytes) {
-  MKN_GPU_ASSERT(hipFuncSetAttribute(f, hipFuncAttributeMaxDynamicSharedMemorySize,
-                                     static_cast<int>(bytes)));
+  MKN_GPU_ASSERT(
+      hipFuncSetAttribute(f, hipFuncAttributeMaxDynamicSharedMemorySize, static_cast<int>(bytes)));
 }
 
 auto inline getLimitMallocHeapSize() {
@@ -104,6 +112,12 @@ auto inline getLimitStackSize() {
 
 void inline setLimitStackSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(hipDeviceSetLimit(hipLimitStackSize, bytes));
+}
+
+std::size_t inline getDevice() {
+  int dev = 0;
+  MKN_GPU_ASSERT(hipGetDevice(&dev));
+  return dev;
 }
 
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(hipSetDevice(dev)); }
@@ -205,4 +219,4 @@ void prefetch_host(T const* p, Size size, hipStream_t stream = 0) {
 
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_ROCM_DEF_HPP_*/
+#endif /*MKN_GPU_ROCM_DEF_HPP*/

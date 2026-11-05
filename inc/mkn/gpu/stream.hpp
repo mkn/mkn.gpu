@@ -28,8 +28,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_MULTI_LAUNCH_HPP_
-#define _MKN_GPU_MULTI_LAUNCH_HPP_
+#ifndef MKN_GPU_STREAM_HPP
+#define MKN_GPU_STREAM_HPP
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/trace.hpp"
@@ -663,4 +663,4 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
 }  // namespace mkn::gpu
 
-#endif /* _MKN_GPU_MULTI_LAUNCH_HPP_ */
+#endif /* MKN_GPU_STREAM_HPP */

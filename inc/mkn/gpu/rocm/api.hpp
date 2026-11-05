@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_ROCM_API_HPP_
-#define _MKN_GPU_ROCM_API_HPP_
+#ifndef MKN_GPU_ROCM_API_HPP
+#define MKN_GPU_ROCM_API_HPP
 
 #include <cstdint>
 
@@ -42,4 +42,4 @@ __global__ static void global_d_kernel(F f, Args... args) {
 
 //
 
-#endif /*_MKN_GPU_ROCM_API_HPP_*/
+#endif /*MKN_GPU_ROCM_API_HPP*/

@@ -47,6 +47,7 @@ __global__ void tiled_conflicts(float* out, float const* in) { tiled_t<0>(out, i
 template <typename K>
 std::uint32_t run(K kernel, bool const transposed, std::vector<float> const& host,
                   DeviceMem<float>& in, DeviceMem<float>& out) {
+  out.fill_n(-1, out.size());  // host has no negatives, a write the kernel skips is caught
   GLauncher{dim3{N / TILE, N / TILE}, dim3{TILE, ROWS}}(kernel, out, in).sync();
   auto const res = out();
   for (std::size_t y = 0; y < N; y += 61)  // sampled, a full check is slow on the host
