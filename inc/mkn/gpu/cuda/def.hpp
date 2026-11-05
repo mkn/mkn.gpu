@@ -56,6 +56,14 @@ std::size_t inline getMaxThreadsPerBlock(std::size_t const dev = 0) {
   return threads;
 }
 
+// most threads per block a launch of kernel f can use on the current device, limited by its
+//  register and shared memory use
+std::size_t inline getKernelMaxThreadsPerBlock(void const* const f) {
+  cudaFuncAttributes attr{};
+  MKN_GPU_ASSERT(cudaFuncGetAttributes(&attr, f));
+  return attr.maxThreadsPerBlock;
+}
+
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
   MKN_GPU_ASSERT(cudaDeviceGetLimit(&bytes, cudaLimitMallocHeapSize));

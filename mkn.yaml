@@ -22,6 +22,20 @@ profile:
   test: tst/any/(\w).cpp
         tst/cuda/(\w).cpp
 
+# profiler annotations, see inc/mkn/gpu/trace.hpp
+#  nsys profile --trace=cuda,nvtx <test binary>
+- name: cuda_trace
+  parent: headers
+  arg: -DMKN_GPU_CUDA=1 -DMKN_GPU_TRACE=1
+  test: tst/any/trace.cpp
+
+#  rocprofv3 --marker-trace --kernel-trace -- <test binary>
+- name: rocm_trace
+  parent: headers
+  arg: -DMKN_GPU_ROCM=1 -DMKN_GPU_TRACE=1
+  lib: rocprofiler-sdk-roctx
+  test: tst/any/trace.cpp
+
 # if you have no GPU but want to test your code
 - name: cpu
   parent: headers

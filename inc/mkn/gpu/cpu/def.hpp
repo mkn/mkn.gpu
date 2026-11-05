@@ -36,6 +36,7 @@
 #define __device__
 #define __host__
 #define __global__
+#define __launch_bounds__(...)
 #define __syncthreads(...)
 
 #if !defined(MKN_CPU_DO_NOT_DEFINE_DIM3)
@@ -77,6 +78,9 @@ std::uint32_t inline getWarpSize(size_t /*dev */ = 0) { return 1; }
 static std::uint32_t inline const warp_size = getWarpSize();
 
 std::size_t inline getMaxThreadsPerBlock(std::size_t const /*dev*/ = 0) { return 1024; }
+
+// launches run one element per block, see launch in cpu/cls.hpp
+std::size_t inline getKernelMaxThreadsPerBlock(void const* const /*f*/) { return 1; }
 
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;

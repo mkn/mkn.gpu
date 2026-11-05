@@ -35,7 +35,8 @@ namespace detail {
 
 template <std::size_t... I, typename... Args>
 auto _as_values(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
-  using T = std::tuple<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))&...>*;
+  // kernel arguments are by value, const would not match the kernel's own parameter types
+  using T = std::tuple<std::remove_cvref_t<decltype(MKN_GPU_NS::replace(std::get<I>(tup)))>&...>*;
   return T{nullptr};
 }
 
@@ -57,11 +58,46 @@ concept span_like = mkn::kul::is_span_like_v<std::decay_t<T>>;
 
 }  // namespace detail
 
+// most threads per block a launch of kernel can use, queried once per kernel on the device that
+//  is current at the first call, the same kernel must not then be launched on a device of
+//  another architecture
+template <auto kernel>
+std::size_t kernel_bx_threads() {
+  static std::size_t const max = getKernelMaxThreadsPerBlock(reinterpret_cast<void const*>(kernel));
+  return max;
+}
+
 // grid/block derived from a problem size, device functions are bounds checked against it
 struct Guess {};
 
 // grid/block provided by the caller
 struct Fixed {};
+
+// as kernel_bx_threads for the kernel a DLauncher generates for device function F, global_gd_kernel
+//  for Guess (bounds checked) or global_d_kernel for Fixed, separate kernels whose limits can
+//  differ. Keyed on types as a local lambda type in F does not make a valid template argument for
+//  all compilers
+template <typename Mode, typename F, typename... PArgs>
+std::size_t device_kernel_bx_threads() {
+  static_assert(std::is_same_v<Mode, Guess> || std::is_same_v<Mode, Fixed>,
+                "Launcher mode must be Guess or Fixed");
+  auto const kernel = [] {
+    if constexpr (std::is_same_v<Mode, Guess>)
+      return &global_gd_kernel<F, PArgs...>;
+    else
+      return &global_d_kernel<F, PArgs...>;
+  }();
+  static std::size_t const max = getKernelMaxThreadsPerBlock(reinterpret_cast<void const*>(kernel));
+  return max;
+}
+
+// most threads per block for the kernel a DLauncher<Mode> generates to launch fn(args...)
+template <typename Mode = Guess, typename F, typename... Args>
+std::size_t getDeviceKernelMaxThreadsPerBlock(F const&, Args&&... args) {
+  return [&]<typename... PArgs>(std::tuple<PArgs&...>*) {
+    return device_kernel_bx_threads<Mode, F, PArgs...>();
+  }(detail::as_values(args...));
+}
 
 // launches are asynchronous, call sync() to wait for the stream (or device without a stream)
 template <typename Mode>
@@ -72,9 +108,8 @@ struct ALauncher : public Launcher {
   ALauncher(std::size_t const size, std::size_t const dev = 0)
     requires(guess)
       : Launcher{dim3{}, dim3{}}, count{size} {
-    b.x = mkn::gpu::bx_threads(detail::max_threads_per_block(dev));
-    g.x = size / b.x;
-    if ((size % b.x) > 0) ++g.x;
+    bx_cap = detail::max_threads_per_block(dev);
+    set_bx(bx_cap);
   }
 
   template <detail::span_like C>
@@ -112,7 +147,20 @@ struct ALauncher : public Launcher {
     return false;
   }
 
-  std::size_t count = 0;  // Guess only
+  std::size_t count = 0;   // Guess only
+  std::size_t bx_cap = 0;  // Guess only, block x dimension before the kernel limit
+
+ protected:
+  void set_bx(std::size_t const bx) {
+    b.x = bx;
+    g.x = mkn::gpu::guess_grid_dim(count, bx);
+  }
+
+  // guessed launches are limited by the kernel's own maximum block size, which can be below the
+  //  device maximum for kernels with high register or shared memory use
+  void fit(std::size_t const kernel_max) {
+    if constexpr (guess) set_bx(mkn::gpu::clamp_bx_threads(bx_cap, kernel_max, warp_size));
+  }
 };
 
 // for __global__ functions
@@ -120,6 +168,15 @@ template <typename Mode>
 struct GlobalLauncher : public ALauncher<Mode> {
   using Super = ALauncher<Mode>;
   using Super::Super;
+
+  // guessed launches of __global__ functions are not limited by the kernel unless given its
+  //  maximum, e.g. once per kernel: static auto const bx = kernel_bx_threads<kernel>();
+  auto& bx(std::size_t const kernel_max)
+    requires(Super::guess)
+  {
+    this->fit(kernel_max);
+    return *this;
+  }
 
   template <typename F, typename... Args>
   auto& operator()(F&& f, Args&&... args) {
@@ -157,12 +214,14 @@ struct DeviceLauncher : public ALauncher<Mode> {
  protected:
   template <typename F, typename... PArgs, typename... Args>
   void _launch(F& f, std::tuple<PArgs&...>*, Args&&... args) {
-    if constexpr (Super::guess)
+    if constexpr (Super::guess) {
+      this->fit(device_kernel_bx_threads<Guess, F, PArgs...>());
       MKN_GPU_NS::launch<false>(&global_gd_kernel<F, PArgs...>, this->g, this->b, this->ds, this->s,
                                 f, this->count, args...);
-    else
+    } else {
       MKN_GPU_NS::launch<false>(&global_d_kernel<F, PArgs...>, this->g, this->b, this->ds, this->s,
                                 f, args...);
+    }
   }
 };
 
