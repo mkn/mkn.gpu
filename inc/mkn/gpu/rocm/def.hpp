@@ -39,15 +39,15 @@ auto inline getDeviceProperties(size_t dev = 0) {
 }
 
 std::uint32_t inline getWarpSize(size_t dev = 0) {
-#ifdef _MKN_GPU_WARP_SIZE_
-  return _MKN_GPU_WARP_SIZE_;
+#ifdef MKN_GPU_WARP_SIZE
+  return MKN_GPU_WARP_SIZE;
 
 #else
   hipDeviceProp_t devProp;
   MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
   return devProp.warpSize;
 
-#endif /*_MKN_GPU_WARP_SIZE_    */
+#endif /*MKN_GPU_WARP_SIZE    */
 }
 
 static std::uint32_t inline const warp_size = getWarpSize();
