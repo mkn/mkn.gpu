@@ -6,19 +6,25 @@ CUDA/HIP C++20 convenience wrappers
 
 Whether you are using CUDA or ROCM, we attempt to deduce from available headers.
 If automatic detection fails, specify appropriate define like `-DMKN_GPU_CUDA=1`
-See: inc/mkn/gpu/defines.hpp
+Without CUDA or ROCM headers the CPU backend is used.
+See: inc/mkn/gpu/def.hpp
 
 Compile argument switches
 
 Key             MKN_GPU_CUDA
 Type            bool
-Default         0
+Default         1 if cuda_runtime.h is found, else 0
 Description     activate CUDA as impl of mkn::gpu::*
 
 Key             MKN_GPU_ROCM
 Type            bool
-Default         0
+Default         1 if hip/hip_runtime.h is found, else 0
 Description     activate ROCM as impl of mkn::gpu::*
+
+Key             MKN_GPU_CPU
+Type            bool
+Default         1 if neither CUDA nor ROCM is active, else 0
+Description     activate the CPU backend as impl of mkn::gpu::*, even when GPU headers are available
 
 Key             MKN_GPU_FN_PER_NS
 Type            bool
@@ -27,25 +33,16 @@ Description     expose functions explicitly via
                    mkn::gpu::hip::*
                    mkn::gpu::cuda::*
 
-Key             _MKN_GPU_WARP_SIZE_
+Key             MKN_GPU_WARP_SIZE
 Type            uint
 Default         use manufacturer provided (eg warpSize), usually 32
 Description     override use if defined
 
-Key             _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_
-Type            uint
-Default         1
-Description     Initial wait time in milliseconds for polling active jobs for completion
-
-Key             _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_ADD_
-Type            uint
-Default         10
-Description     Additional wait time in milliseconds for polling active jobs for completion when no job is finished.
-
-Key             _MKN_GPU_THREADED_STREAM_LAUNCHER_WAIT_MS_MAX_
-Type            uint
-Default         100
-Description     Max wait time in milliseconds for polling active jobs for completion when no job is finished.
+Key             MKN_GPU_TRACE
+Type            bool
+Default         1 for CUDA when NVTX3 headers are available, else 0
+Description     profiler annotations (NVTX / roctx), see inc/mkn/gpu/trace.hpp
+                   ROCM requires linking rocprofiler-sdk-roctx
 
 Key             MKN_CPU_DO_NOT_DEFINE_DIM3
 Type            bool

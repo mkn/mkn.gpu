@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CUDA_API_HPP_
-#define _MKN_GPU_CUDA_API_HPP_
+#ifndef MKN_GPU_CUDA_API_HPP
+#define MKN_GPU_CUDA_API_HPP
 
 #include <cstdint>
 
@@ -44,4 +44,4 @@ __global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
 
 //
 
-#endif /*_MKN_GPU_CUDA_API_HPP_*/
+#endif /*MKN_GPU_CUDA_API_HPP*/

@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_ROCM_CLS_HPP_
-#define _MKN_GPU_ROCM_CLS_HPP_
+#ifndef MKN_GPU_ROCM_CLS_HPP
+#define MKN_GPU_ROCM_CLS_HPP
 
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
@@ -130,4 +130,4 @@ struct Launcher {
 
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_ROCM_CLS_HPP_*/
+#endif /*MKN_GPU_ROCM_CLS_HPP*/

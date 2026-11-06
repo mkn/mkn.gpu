@@ -1,0 +1,4 @@
+"Kind","Agent_Id","Queue_Id","Stream_Id","Thread_Id","Dispatch_Id","Kernel_Id","Kernel_Name","Correlation_Id","Start_Timestamp","End_Timestamp","LDS_Block_Size","Scratch_Size","VGPR_Count","Accum_VGPR_Count","SGPR_Count","Workgroup_Size_X","Workgroup_Size_Y","Workgroup_Size_Z","Grid_Size_X","Grid_Size_Y","Grid_Size_Z"
+"KERNEL_DISPATCH","Agent 1",1,0,38047,1,1,"kernel(float*, unsigned long)",3,4027625838588,4027625851292,0,0,8,0,128,1024,1,1,1024,1,1
+"KERNEL_DISPATCH","Agent 1",1,0,38047,2,1,"kernel(float*, unsigned long)",4,4027625916283,4027625919129,0,0,8,0,128,1024,1,1,1024,1,1
+"KERNEL_DISPATCH","Agent 1",1,0,38047,3,1,"kernel(float*, unsigned long)",5,4027625939687,4027625942613,0,0,8,0,128,1024,1,1,1024,1,1

@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CUDA_CLS_HPP_
-#define _MKN_GPU_CUDA_CLS_HPP_
+#ifndef MKN_GPU_CUDA_CLS_HPP
+#define MKN_GPU_CUDA_CLS_HPP
 
 #include <cstddef>
 #include <functional>
@@ -118,4 +118,4 @@ struct Launcher {
 
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_CUDA_CLS_HPP_*/
+#endif /*MKN_GPU_CUDA_CLS_HPP*/

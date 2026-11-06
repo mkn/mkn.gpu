@@ -28,10 +28,11 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_MULTI_LAUNCH_HPP_
-#define _MKN_GPU_MULTI_LAUNCH_HPP_
+#ifndef MKN_GPU_STREAM_HPP
+#define MKN_GPU_STREAM_HPP
 
 #include "mkn/gpu.hpp"
+#include "mkn/gpu/trace.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/time.hpp"
 #include "mkn/kul/except.hpp"
@@ -46,6 +47,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdint>
 #include <fstream>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 namespace mkn::gpu::detail {
 template <typename Type>
@@ -74,6 +77,7 @@ struct StreamFunction {
   StreamFunction(Strat& strat_, StreamFunctionMode const mode_) : strat{strat_}, mode{mode_} {}
   virtual ~StreamFunction() {}
   virtual void run(std::uint32_t const) = 0;
+  virtual std::string_view kind() const { return "fn"; }
 
   Strat& strat;
   StreamFunctionMode mode;
@@ -106,6 +110,8 @@ struct StreamGroupFunction : public StreamFunction<Strat> {
 
 template <typename Strat, typename Fn>
 struct StreamDeviceFunction : StreamFunction<Strat> {
+  std::string_view kind() const override { return "dev"; }
+
   using Super = StreamFunction<Strat>;
   using Super::strat;
 
@@ -122,6 +128,8 @@ struct StreamDeviceFunction : StreamFunction<Strat> {
 
 template <typename Strat, typename Fn>
 struct StreamHostFunction : StreamFunction<Strat> {
+  std::string_view kind() const override { return "host"; }
+
   using Super = StreamFunction<Strat>;
   StreamHostFunction(Strat& strat, Fn&& fn_)
       : Super{strat, StreamFunctionMode::HOST_WAIT}, fn{fn_} {}
@@ -136,6 +144,9 @@ struct StreamLauncher {
 
   StreamLauncher(Datas& datas_) : datas{datas_}, streams(datas.size()), data_step(datas.size(), 0) {
     for (auto& s : streams) events.emplace_back(s);
+    if constexpr (trace::enabled)
+      for (std::size_t i = 0; i < streams.size(); ++i)
+        trace::name_stream(streams[i], ("mkn.gpu stream " + std::to_string(i)).c_str());
   }
 
   ~StreamLauncher() { sync(); }
@@ -159,7 +170,8 @@ struct StreamLauncher {
     using namespace std::chrono_literals;
 
     if (fns.size() == 0 || datas.size() == 0) return;
-    times.resize(fns.size() * datas.size());
+    prepare();
+    trace::Range range{"StreamLauncher"};
 
     for (std::size_t i = 0; i < datas.size(); ++i) self(i);
 
@@ -182,9 +194,18 @@ struct StreamLauncher {
     assert(i < events.size());
 
     times[(i * fns.size()) + step].start();
+    trace::Range range{labels[step].c_str(), i};
     fns[step]->run(i);
     if (fns[step]->mode == StreamFunctionMode::DEVICE_WAIT)
       events[i]([this, i = i]() { Self::finished_callback(this->self, i); });
+  }
+
+  // called once before any step runs, labels are read concurrently afterwards
+  void prepare() {
+    times.resize(fns.size() * datas.size());
+    labels.resize(fns.size());
+    for (std::size_t s = 0; s < fns.size(); ++s)
+      labels[s] = std::to_string(s) + ":" + std::string{fns[s]->kind()};
   }
 
   void static finished_callback(This& /*self*/, std::uint32_t const& /*i*/) { /*noop*/ }
@@ -215,6 +236,7 @@ struct StreamLauncher {
   std::vector<mkn::gpu::StreamEvent> events;
   std::vector<std::uint16_t> data_step;
   std::vector<Timer> times;
+  std::vector<std::string> labels;  // trace range name per step
   Self& self = *reinterpret_cast<Self*>(this);
 };
 
@@ -223,6 +245,8 @@ enum class SFP : std::uint16_t { WORK = 0, NEXT, SKIP };
 
 template <typename Strat, typename Fn>
 struct AsyncStreamHostFunction : StreamFunction<Strat> {
+  std::string_view kind() const override { return "host"; }
+
   using Super = StreamFunction<Strat>;
   using Super::strat;
   AsyncStreamHostFunction(Strat& strat, Fn&& fn_)
@@ -236,6 +260,8 @@ struct AsyncStreamHostFunction : StreamFunction<Strat> {
 
 template <typename Strat>
 struct StreamBarrierFunction : StreamFunction<Strat> {
+  std::string_view kind() const override { return "barrier"; }
+
   using Super = StreamFunction<Strat>;
   using Super::strat;
 
@@ -255,6 +281,8 @@ struct StreamBarrierFunction : StreamFunction<Strat> {
 
 template <typename Strat>
 struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
+  std::string_view kind() const override { return "group_barrier"; }
+
   using This = StreamGroupBarrierFunction<Strat>;
   using Super = StreamGroupFunction<Strat>;
   using Super::strat;
@@ -302,6 +330,8 @@ struct StreamGroupBarrierFunction : StreamGroupFunction<Strat> {
 
 template <typename Strat, typename Fn>
 struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
+  std::string_view kind() const override { return "host_group_mutex"; }
+
   using Super = StreamGroupFunction<Strat>;
   using Super::strat;
 
@@ -355,6 +385,8 @@ struct StreamHostGroupMutexFunction : StreamGroupFunction<Strat> {
 
 template <typename Strat, typename Fn>
 struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
+  std::string_view kind() const override { return "host_group_idx"; }
+
   using Super = StreamGroupFunction<Strat>;
   using Super::strat;
 
@@ -378,6 +410,8 @@ struct StreamHostGroupIndexFunction : StreamGroupFunction<Strat> {
 
 template <typename Strat, typename Fn, bool is = true>
 struct StreamDeviceGroupIndexFunction : StreamGroupFunction<Strat> {
+  std::string_view kind() const override { return "dev_group_idx"; }
+
   using Super = StreamGroupFunction<Strat>;
   using Super::strat;
 
@@ -417,7 +451,11 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   ThreadedStreamLauncher(Datas& datas, std::size_t const _n_threads = 0,
                          std::size_t const device = 0)
-      : Super{datas}, n_threads{_n_threads}, device_id{device}, status(datas.size()) {
+      : Super{datas},
+        n_threads{_n_threads},
+        device_id{device},
+        status(datas.size()),
+        chain_begin(datas.size(), 0) {
     thread_status.resize(_n_threads + 1, SFP::NEXT);
     for (auto& s : status) s = SFS::FIRST;
   }
@@ -480,8 +518,27 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
   bool is_fn_finished(std::uint32_t const i) {
     auto const b = status[i] == SFS::WAIT;
-    if (b) super().times[(i * fns.size()) + step[i]].stop();
+    if (b)  // a chain of device steps finishes together
+      for (std::size_t s = chain_begin[i]; s <= step[i]; ++s)
+        super().times[(i * fns.size()) + s].stop();
     return b;
+  }
+
+  // consecutive device steps are already ordered by the item's stream, they are queued together
+  //  and only the last waits for completion, rather than one callback and hand off per step
+  void run(std::size_t const i) {
+    auto& s = step[i];  // the item is BUSY, owned by this thread
+    chain_begin[i] = s;
+    while (std::size_t{s} + 1 < fns.size() && fns[s]->mode == StreamFunctionMode::DEVICE_WAIT &&
+           fns[s + 1]->mode == StreamFunctionMode::DEVICE_WAIT) {
+      super().times[(i * fns.size()) + s].start();
+      {
+        trace::Range range{super().labels[s].c_str(), static_cast<std::int64_t>(i)};
+        fns[s]->run(i);
+      }
+      ++s;
+    }
+    super(i);  // the last or only step, device steps attach the completion callback
   }
 
   void thread_fn(std::size_t const /*tid*/) {
@@ -491,7 +548,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
       auto const& [ts, idx] = get_work();
 
       if (ts == SFP::WORK) {
-        super(idx);
+        run(idx);
         continue;
       }
 
@@ -548,6 +605,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     if (!started) start();
     if (joined) return *this;
     joined = true;
+    trace::Range range{"ThreadedStreamLauncher::join"};
 
     if (work) thread_fn(threads.size());
     for (auto& t : threads) t.join();
@@ -559,7 +617,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
     if (started) return *this;
     started = 1;
 
-    Super::times.resize(fns.size() * datas.size());
+    Super::prepare();
 
     for (std::size_t i = 0; i < n_threads; ++i)
       threads.emplace_back([&, i = i]() { thread_fn(i); });
@@ -595,6 +653,7 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
   std::atomic<std::uint32_t> epoch = 0;
   std::vector<SFP> thread_status;
   std::vector<std::uint16_t>& step = Super::data_step;
+  std::vector<std::uint16_t> chain_begin;  // first step of the device chain each item is running
 
  private:
   bool joined = false, started = false;
@@ -604,4 +663,4 @@ struct ThreadedStreamLauncher : public StreamLauncher<Datas, ThreadedStreamLaunc
 
 }  // namespace mkn::gpu
 
-#endif /* _MKN_GPU_MULTI_LAUNCH_HPP_ */
+#endif /* MKN_GPU_STREAM_HPP */

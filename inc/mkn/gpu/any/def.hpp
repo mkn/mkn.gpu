@@ -1,4 +1,4 @@
-#ifndef _MKN_GPU_ANY_DEF_HPP_
-#define _MKN_GPU_ANY_DEF_HPP_
+#ifndef MKN_GPU_ANY_DEF_HPP
+#define MKN_GPU_ANY_DEF_HPP
 
-#endif /*_MKN_GPU_ANY_DEF_HPP_*/
+#endif /*MKN_GPU_ANY_DEF_HPP*/

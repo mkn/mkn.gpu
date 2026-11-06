@@ -28,8 +28,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#ifndef _MKN_GPU_ALLOC_HPP_
-#define _MKN_GPU_ALLOC_HPP_
+#ifndef MKN_GPU_ANY_INC_ALLOC_IPP
+#define MKN_GPU_ANY_INC_ALLOC_IPP
 
 template <typename T, std::int32_t alignment>
 class MknGPUAllocator {
@@ -168,4 +168,4 @@ auto& resize(std::vector<T, NoConstructAllocator<T, align>>& v, std::size_t cons
   return v;
 }
 
-#endif /* _MKN_GPU_ALLOC_HPP_ */
+#endif /* MKN_GPU_ANY_INC_ALLOC_IPP */

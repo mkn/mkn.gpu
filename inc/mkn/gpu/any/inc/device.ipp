@@ -29,8 +29,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 // IWYU pragma: private, include "mkn/gpu.hpp"
-#ifndef _MKN_GPU_DEVICE_HPP_
-#define _MKN_GPU_DEVICE_HPP_
+#ifndef MKN_GPU_ANY_INC_DEVICE_IPP
+#define MKN_GPU_ANY_INC_DEVICE_IPP
 
 template <typename T>
 struct DeviceMem {
@@ -345,4 +345,4 @@ auto devmem_replace(std::tuple<Args&...>&& tup, std::index_sequence<I...>) {
 
 } /* namespace */
 
-#endif /* _MKN_GPU_DEVICE_HPP_ */
+#endif /* MKN_GPU_ANY_INC_DEVICE_IPP */

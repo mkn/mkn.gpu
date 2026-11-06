@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CUDA_DEF_HPP_
-#define _MKN_GPU_CUDA_DEF_HPP_
+#ifndef MKN_GPU_CUDA_DEF_HPP
+#define MKN_GPU_CUDA_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
@@ -39,13 +39,13 @@ auto inline getDeviceProperties(size_t dev = 0) {
 }
 
 std::uint32_t inline getWarpSize(size_t dev = 0) {
-#ifdef _MKN_GPU_WARP_SIZE_
-  return _MKN_GPU_WARP_SIZE_;
+#ifdef MKN_GPU_WARP_SIZE
+  return MKN_GPU_WARP_SIZE;
 
 #else
   return getDeviceProperties(dev).warpSize;
 
-#endif /*_MKN_GPU_WARP_SIZE_    */
+#endif /*MKN_GPU_WARP_SIZE    */
 }
 
 static std::uint32_t inline const warp_size = getWarpSize();
@@ -54,6 +54,42 @@ std::size_t inline getMaxThreadsPerBlock(std::size_t const dev = 0) {
   int threads = 0;
   MKN_GPU_ASSERT(cudaDeviceGetAttribute(&threads, cudaDevAttrMaxThreadsPerBlock, dev));
   return threads;
+}
+
+// most threads per block a launch of kernel f can use on the current device, limited by its
+//  register and shared memory use
+std::size_t inline getKernelMaxThreadsPerBlock(void const* const f) {
+  cudaFuncAttributes attr{};
+  MKN_GPU_ASSERT(cudaFuncGetAttributes(&attr, f));
+  return attr.maxThreadsPerBlock;
+}
+
+// dynamic shared memory per block a kernel gets without opting in
+std::size_t inline getMaxSharedMemoryPerBlock(std::size_t const dev = 0) {
+  int bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&bytes, cudaDevAttrMaxSharedMemoryPerBlock, dev));
+  return bytes;
+}
+
+// most dynamic shared memory per block a kernel can opt in to, see setKernelMaxDynamicSharedMemory
+std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
+  int bytes = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&bytes, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev));
+  return bytes;
+}
+
+// dynamic shared memory per block kernel f can be launched with on the current device, below
+//  the device default when f uses static shared memory, raised by setKernelMaxDynamicSharedMemory
+std::size_t inline getKernelMaxDynamicSharedMemory(void const* const f) {
+  cudaFuncAttributes attr{};
+  MKN_GPU_ASSERT(cudaFuncGetAttributes(&attr, f));
+  return attr.maxDynamicSharedSizeBytes;
+}
+
+// allows launches of kernel f on the current device with up to bytes of dynamic shared memory
+void inline setKernelMaxDynamicSharedMemory(void const* const f, std::size_t const bytes) {
+  MKN_GPU_ASSERT(cudaFuncSetAttribute(f, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                      static_cast<int>(bytes)));
 }
 
 auto inline getLimitMallocHeapSize() {
@@ -74,6 +110,12 @@ auto inline getLimitStackSize() {
 
 void inline setLimitStackSize(std::size_t const& bytes) {
   MKN_GPU_ASSERT(cudaDeviceSetLimit(cudaLimitStackSize, bytes));
+}
+
+std::size_t inline getDevice() {
+  int dev = 0;
+  MKN_GPU_ASSERT(cudaGetDevice(&dev));
+  return dev;
 }
 
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
@@ -156,6 +198,33 @@ void take_async(T const* p, T* t, cudaStream_t& stream, Size size = 1) {
   MKN_GPU_ASSERT(cudaMemcpyAsync(t, p, size * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
 
+// migrate managed memory to device dev ahead of its use there, asynchronous on stream
+template <typename T, typename Size>
+void prefetch(T const* p, Size size, std::size_t const dev = 0, cudaStream_t stream = 0) {
+  KLOG(TRC);
+#if CUDART_VERSION >= 13000
+  cudaMemLocation location{};
+  location.type = cudaMemLocationTypeDevice;
+  location.id = static_cast<int>(dev);
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), location, 0, stream));
+#else
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), static_cast<int>(dev), stream));
+#endif
+}
+
+// migrate managed memory to the host ahead of its use there, asynchronous on stream
+template <typename T, typename Size>
+void prefetch_host(T const* p, Size size, cudaStream_t stream = 0) {
+  KLOG(TRC);
+#if CUDART_VERSION >= 13000
+  cudaMemLocation location{};
+  location.type = cudaMemLocationTypeHost;
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), location, 0, stream));
+#else
+  MKN_GPU_ASSERT(cudaMemPrefetchAsync(p, size * sizeof(T), cudaCpuDeviceId, stream));
+#endif
+}
+
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_CUDA_DEF_HPP_*/
+#endif /*MKN_GPU_CUDA_DEF_HPP*/

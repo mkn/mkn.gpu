@@ -1,5 +1,5 @@
-#ifndef _MKN_GPU_CPU_DEF_HPP_
-#define _MKN_GPU_CPU_DEF_HPP_
+#ifndef MKN_GPU_CPU_DEF_HPP
+#define MKN_GPU_CPU_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/assert.hpp"
@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cpu
@@ -36,6 +37,7 @@
 #define __device__
 #define __host__
 #define __global__
+#define __launch_bounds__(...)
 #define __syncthreads(...)
 
 #if !defined(MKN_CPU_DO_NOT_DEFINE_DIM3)
@@ -101,6 +103,21 @@ static std::uint32_t inline const warp_size = getWarpSize();
 
 std::size_t inline getMaxThreadsPerBlock(std::size_t const /*dev*/ = 0) { return 1024; }
 
+// launches run one element per block, see launch in cpu/cls.hpp
+std::size_t inline getKernelMaxThreadsPerBlock(void const* const /*f*/) { return 1; }
+
+// shared memory is host memory, no limit to opt in to
+std::size_t inline getMaxSharedMemoryPerBlock(std::size_t const /*dev*/ = 0) {
+  return std::numeric_limits<std::size_t>::max();
+}
+std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
+  return getMaxSharedMemoryPerBlock(dev);
+}
+std::size_t inline getKernelMaxDynamicSharedMemory(void const* const /*f*/) {
+  return getMaxSharedMemoryPerBlock();
+}
+void inline setKernelMaxDynamicSharedMemory(void const* const /*f*/, std::size_t const /*bytes*/) {}
+
 auto inline getLimitMallocHeapSize() {
   std::size_t bytes = 0;
 
@@ -117,6 +134,7 @@ auto inline getLimitStackSize() {
 
 void inline setLimitStackSize(std::size_t const& /*bytes*/) {}
 
+std::size_t inline getDevice() { return 0; }
 void inline setDevice(std::size_t const& /*dev*/) {} /*noop*/
 
 template <typename Size>
@@ -198,6 +216,14 @@ void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
 void inline sync() {}
 void inline sync(std::size_t const /*stream*/) {}
 
+// managed memory is host memory, nothing to migrate
+template <typename T, typename Size>
+void prefetch(T const* /*p*/, Size /*size*/, std::size_t const /*dev*/ = 0,
+              std::size_t const /*stream*/ = 0) {}
+
+template <typename T, typename Size>
+void prefetch_host(T const* /*p*/, Size /*size*/, std::size_t const /*stream*/ = 0) {}
+
 }  // namespace MKN_GPU_NS
 
-#endif /*_MKN_GPU_CPU_DEF_HPP_*/
+#endif /*MKN_GPU_CPU_DEF_HPP*/

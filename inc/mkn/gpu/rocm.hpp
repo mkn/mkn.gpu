@@ -29,8 +29,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 // IWYU pragma: private, include "mkn/gpu.hpp"
-#ifndef _MKN_GPU_ROCM_HPP_
-#define _MKN_GPU_ROCM_HPP_
+#ifndef MKN_GPU_ROCM_HPP
+#define MKN_GPU_ROCM_HPP
 
 #include "mkn/kul/log.hpp"
 
@@ -39,6 +39,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu/rocm/def.hpp"
 #include "mkn/gpu/rocm/api.hpp"
 #include "mkn/gpu/rocm/cls.hpp"
+
+#include <mutex>
+#include <map>
 
 namespace MKN_GPU_NS {
 
@@ -72,13 +75,13 @@ void inline prinfo(size_t dev = 0) {
   KOUT(NON) << " device warpSize " << devProp.warpSize;
   KOUT(NON) << " threadsPBlock   " << devProp.maxThreadsPerBlock;
 
-#ifdef _MKN_GPU_WARP_SIZE_
-  KOUT(NON) << " warpSize used   " << _MKN_GPU_WARP_SIZE_;
+#ifdef MKN_GPU_WARP_SIZE
+  KOUT(NON) << " warpSize used   " << MKN_GPU_WARP_SIZE;
 #else
   KOUT(NON) << " warpSize used   " << warp_size;
   if (warp_size != static_cast<std::uint32_t>(devProp.warpSize)) {
     KOUT(NON) << " warpSize MISMATCH!!!  " << warp_size << " vs " << devProp.warpSize;
-    KOUT(NON) << " SEE mkn.gpu README for -D_MKN_GPU_WARP_SIZE_=###";
+    KOUT(NON) << " SEE mkn.gpu README for -DMKN_GPU_WARP_SIZE=###";
   }
 #endif
   KOUT(NON) << " version:        " << HIP_VERSION_MAJOR << "." << HIP_VERSION_MINOR << "."
@@ -102,4 +105,4 @@ void inline print_gpu_mem_used() {
 
 #undef MKN_GPU_ASSERT
 
-#endif /* _MKN_GPU_ROCM_HPP_ */
+#endif /* MKN_GPU_ROCM_HPP */
