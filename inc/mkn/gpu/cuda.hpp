@@ -80,7 +80,7 @@ void inline prinfo(size_t dev = 0) {
 }
 
 void inline print_gpu_mem_used() {
-  float free_m = 0, total_m = 0, used_m = 0;
+  double free_m = 0, total_m = 0, used_m = 0;
   std::size_t free_t = 0, total_t = 0;
   MKN_GPU_ASSERT(cudaMemGetInfo(&free_t, &total_t));
   free_m = free_t / 1048576.0;
