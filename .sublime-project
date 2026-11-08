@@ -15,6 +15,6 @@
 		},
 		"python-black": {
 	      "format_on_save": "on",
-	    },
+	    }
 	}
 }
