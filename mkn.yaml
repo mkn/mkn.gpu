@@ -59,6 +59,7 @@ profile:
 
 #  mkn clean build -dtOp iwyu_rocm -x res/mkn/hipcc_sys
 #  hipcc adds the HIP flags itself, iwyu needs them given
+#  clang finds ROCm itself (ROCM_PATH, /opt/rocm, distro installs), or add --rocm-path
 - name: iwyu_rocm
   parent: rocm
   mod:
@@ -66,7 +67,7 @@ profile:
     compile:
       paths: inc tst
       ignore: any/inc gpu/cpu gpu/cuda tst/cpu tst/cuda
-      args: -x hip --rocm-path=/opt/rocm --offload-arch=gfx1100 --offload-host-only -nogpulib
+      args: -x hip --offload-arch=gfx1100 --offload-host-only -nogpulib
             -Xiwyu --mapping_file=res/iwyu/rocm.imp
 
 #  mkn clean build -dtOp iwyu_cuda -x res/mkn/clang_cuda
