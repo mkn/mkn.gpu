@@ -14,7 +14,7 @@ import poc_pyb
 N = 32  # or warpsize
 
 
-@cuda.jit
+@cuda.jit(device=True)
 def vadd(i, a, b, c):
     c[i] = a[i] + b[i]
 
@@ -29,6 +29,7 @@ s.print()
 a, b, c = s.A(), s.B(), s.C()
 print(c)
 vector_add_gpu[1, N](a, b, c)
+cuda.synchronize()
 print(c)
 a += 11
 s.print()

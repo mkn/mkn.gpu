@@ -5,17 +5,17 @@
 #include <pybind11/functional.h>
 #include <typeinfo>
 #include <iostream>
+#include <algorithm>
 
 #define PRINT(x) std::cout << __FILE__ << " " << __LINE__ << " " << x << std::endl;
 
 #include "mkn/gpu.hpp"
-#include "mkn/gpu/tuple.hpp"
 
 void init(float* a, float* b) {
   mkn::gpu::DLauncher()([a = a, b = b] __device__() {
     a[threadIdx.x] = threadIdx.x + 1;
     b[threadIdx.x] = threadIdx.x + 2;
-  });
+  }).sync();
 }
 
 namespace py = pybind11;
@@ -25,7 +25,7 @@ struct FunctionSupport {
     mkn::gpu::alloc_managed(a, 32);
     mkn::gpu::alloc_managed(b, 32);
     mkn::gpu::alloc_managed(c, 32);
-    print();
+    std::fill_n(c, 32, 0.f);
     init(a, b);
     print();
   }
@@ -59,13 +59,10 @@ PYBIND11_MODULE(poc_pyb, m) {
       .def(py::init<>())
       .def("print", &FunctionSupport::print)
       .def_readwrite("a", &FunctionSupport::a)
-      .def("A", &FunctionSupport::A)
+      // the arrays view this object's buffers, keep it alive while they exist
+      .def("A", &FunctionSupport::A, py::keep_alive<0, 1>())
       .def_readwrite("b", &FunctionSupport::b)
-      .def("B", &FunctionSupport::B)
-      .def_readwrite("a", &FunctionSupport::a)
-      .def("C", &FunctionSupport::C);
-
-  using Span_t = mkn::gpu::Span<float>;
-  py::class_<Span_t, py::smart_holder>(m, "Span_s")
-      .def("__getitem__", [](Span_t& self, unsigned index) { return self[index]; });
+      .def("B", &FunctionSupport::B, py::keep_alive<0, 1>())
+      .def_readwrite("c", &FunctionSupport::c)
+      .def("C", &FunctionSupport::C, py::keep_alive<0, 1>());
 }
