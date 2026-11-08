@@ -42,6 +42,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //  rocprofv3 --marker-trace --kernel-trace -- ./app
 
 #include "mkn/gpu.hpp"
+#include "mkn/gpu/def.hpp"
 
 #include <cstdint>
 

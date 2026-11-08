@@ -1,0 +1,29 @@
+# iwyu mappings for the cuda backend, used by the iwyu_cuda profile in mkn.yaml
+[
+  { ref: "common.imp" },
+
+  # cuda runtime: only <cuda_runtime.h> is meant to be included
+  { include: ["@<crt/.*>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<cuda_runtime_api.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<driver_types.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<vector_types.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<vector_functions.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<device_launch_parameters.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["<__clang_cuda_runtime_wrapper.h>", "private", "<cuda_runtime.h>", "public"] },
+  { include: ["@<__clang_cuda_.*>", "private", "<cuda_runtime.h>", "public"] },
+
+  # clang's CUDA builtin variables, iwyu credits them to whichever cuda header it saw first
+  { symbol: ["threadIdx", "private", "<cuda_runtime.h>", "public"] },
+  { symbol: ["blockIdx", "private", "<cuda_runtime.h>", "public"] },
+  { symbol: ["blockDim", "private", "<cuda_runtime.h>", "public"] },
+  { symbol: ["gridDim", "private", "<cuda_runtime.h>", "public"] },
+  { symbol: ["warpSize", "private", "<cuda_runtime.h>", "public"] },
+  { symbol: ["CUDA_VERSION", "private", "<cuda_runtime.h>", "public"] },
+
+  # nvtx: the detail headers are implementation, nvToolsExt.h is the API
+  { include: ["@<nvtx3/nvtxDetail/.*>", "private", "<nvtx3/nvToolsExt.h>", "public"] },
+
+  # libstdc++ 16 (fedora 44), iwyu 0.26 has no public header for these
+  { include: ["<bits/basic_string.h>", "private", "<string>", "public"] },
+  { include: ["<bits/basic_string.tcc>", "private", "<string>", "public"] },
+]

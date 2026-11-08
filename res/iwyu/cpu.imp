@@ -1,0 +1,4 @@
+# iwyu mappings for the cpu backend, used by the iwyu_cpu profile in mkn.yaml
+[
+  { ref: "common.imp" },
+]

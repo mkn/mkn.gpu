@@ -1,13 +1,17 @@
+// IWYU pragma: private, include "mkn/gpu.hpp"
+// IWYU pragma: friend ".*mkn/gpu/(cpu|cuda|rocm|any)(/.*|\.hpp)"
+
 #ifndef MKN_GPU_ROCM_DEF_HPP
 #define MKN_GPU_ROCM_DEF_HPP
 
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
+#include "hip/hip_runtime.h"
 
+#include <cstdio>
 #include <string>
 #include <cstdint>
-
-#include "hip/hip_runtime.h"
+#include <cstdlib>
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::hip

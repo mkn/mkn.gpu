@@ -29,7 +29,9 @@
 
 #include "hip/hip_runtime.h"
 
-#include <stdio.h>
+#include <cstdio>
+#include <cmath>
+#include <cstdlib>
 
 // Convenience function for checking HIP runtime API results
 // can be wrapped around any runtime API call. No-op in release builds.

@@ -33,21 +33,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MKN_GPU_CUDA_HPP
 
 #include "mkn/kul/log.hpp"
+#include "mkn/gpu/cuda/def.hpp"  // IWYU pragma: export
+#include "mkn/gpu/cuda/api.hpp"  // IWYU pragma: export
+#include "mkn/gpu/cuda/cls.hpp"  // IWYU pragma: export
 
-#include <cuda_runtime.h>
-
-#include "mkn/gpu/cuda/def.hpp"
-#include "mkn/gpu/cuda/api.hpp"
-#include "mkn/gpu/cuda/cls.hpp"
+#include <cuda_runtime.h>  // IWYU pragma: export
 
 //
 
 #include <mutex>
 #include <map>
+#include <cstdio>
 
 namespace MKN_GPU_NS {
 
-#include "mkn/gpu/any/inc/launchers.ipp"
+#include "mkn/gpu/any/inc/launchers.ipp"  // IWYU pragma: export
 
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {
@@ -90,7 +90,7 @@ void inline print_gpu_mem_used() {
          total_t, total_m, used_m);
 }
 
-#include "mkn/gpu/any/inc/devfunc.ipp"
+#include "mkn/gpu/any/inc/devfunc.ipp"  // IWYU pragma: export
 
 }  // namespace MKN_GPU_NS
 

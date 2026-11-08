@@ -4,6 +4,12 @@
 //  ncu --section LaunchStats --section Occupancy <test binary>
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/log.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <tuple>
+#include <vector>
 
 using namespace mkn::gpu;
 

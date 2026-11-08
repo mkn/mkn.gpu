@@ -1,5 +1,9 @@
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/log.hpp"
+
+#include <cstdint>
+#include <vector>
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;

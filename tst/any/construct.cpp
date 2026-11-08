@@ -1,6 +1,13 @@
 
 #include "mkn/gpu.hpp"
 #include "mkn/kul/assert.hpp"
+#include "mkn/kul/log.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <vector>
 
 static constexpr uint32_t NUM = 5;
 

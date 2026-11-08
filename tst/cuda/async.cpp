@@ -28,8 +28,10 @@
  */
 
 #include <cuda_runtime.h>
-
-#include <stdio.h>
+#include <cstdio>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
 
 // Convenience function for checking CUDA runtime API results
 // can be wrapped around any runtime API call. No-op in release builds.

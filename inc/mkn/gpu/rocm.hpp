@@ -34,18 +34,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mkn/kul/log.hpp"
 
-#include "hip/hip_runtime.h"
-
-#include "mkn/gpu/rocm/def.hpp"
-#include "mkn/gpu/rocm/api.hpp"
-#include "mkn/gpu/rocm/cls.hpp"
-
 #include <mutex>
 #include <map>
+#include <cstdint>
+#include <cstdio>
+// -x hip implicitly includes the angle bracket form
+// IWYU pragma: no_include <hip/hip_runtime.h>
+#include "hip/hip_runtime.h"     // IWYU pragma: export
+#include "mkn/gpu/rocm/def.hpp"  // IWYU pragma: export
+#include "mkn/gpu/rocm/api.hpp"  // IWYU pragma: export
+#include "mkn/gpu/rocm/cls.hpp"  // IWYU pragma: export
 
 namespace MKN_GPU_NS {
 
-#include "mkn/gpu/any/inc/launchers.ipp"
+#include "mkn/gpu/any/inc/launchers.ipp"  // IWYU pragma: export
 
 template <typename T, typename V>
 __global__ void _vector_fill(T* a, V t, std::size_t s) {
@@ -99,7 +101,7 @@ void inline print_gpu_mem_used() {
          total_t, total_m, used_m);
 }
 
-#include "mkn/gpu/any/inc/devfunc.ipp"
+#include "mkn/gpu/any/inc/devfunc.ipp"  // IWYU pragma: export
 
 }  // namespace MKN_GPU_NS
 

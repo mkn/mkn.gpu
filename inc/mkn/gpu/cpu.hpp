@@ -35,17 +35,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
 #include "mkn/kul/tuple.hpp"
-
-#include "mkn/gpu/cpu/def.hpp"
-#include "mkn/gpu/cpu/api.hpp"
-#include "mkn/gpu/cpu/cls.hpp"
+#include "mkn/gpu/cpu/def.hpp"  // IWYU pragma: export
+#include "mkn/gpu/cpu/api.hpp"  // IWYU pragma: export
+#include "mkn/gpu/cpu/cls.hpp"  // IWYU pragma: export
 
 #include <cassert>
 #include <cstring>
 #include <algorithm>
-
 #include <mutex>
 #include <map>
+#include <cstdint>
 
 namespace MKN_GPU_NS {
 
@@ -89,7 +88,7 @@ static void global_d_kernel(F& f, Args... args) {
   f(args...);
 }
 
-#include "mkn/gpu/any/inc/launchers.ipp"
+#include "mkn/gpu/any/inc/launchers.ipp"  // IWYU pragma: export
 
 } /* namespace MKN_GPU_NS */
 

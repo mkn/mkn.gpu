@@ -1,0 +1,11 @@
+# iwyu mappings for the rocm backend, used by the iwyu_rocm profile in mkn.yaml
+[
+  { ref: "common.imp" },
+
+  # hip runtime: only "hip/hip_runtime.h" is meant to be included
+  { include: ["@<hip/.*>", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["@\"hip/.*\"", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["<__clang_hip_runtime_wrapper.h>", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["@<__clang_hip_.*>", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["@<__clang_cuda_.*>", "private", "\"hip/hip_runtime.h\"", "public"] },
+]

@@ -1,8 +1,17 @@
+// IWYU pragma: private, include "mkn/gpu.hpp"
+// IWYU pragma: friend ".*mkn/gpu/(cpu|cuda|rocm|any)(/.*|\.hpp)"
+
 #ifndef MKN_GPU_CPU_CLS_HPP
 #define MKN_GPU_CPU_CLS_HPP
 
-#include "mkn/gpu/any/cls.hpp"
-#include "mkn/gpu/cpu/def.hpp"
+// device.ipp uses devmem_replace from itself, iwyu credits it to the public header
+// IWYU pragma: no_include "mkn/gpu.hpp"
+
+#include "mkn/gpu/any/cls.hpp"  // IWYU pragma: export
+
+#include "mkn/gpu/cpu/def.hpp"  // IWYU pragma: export
+#include "mkn/kul/span.hpp"     // IWYU pragma: keep
+#include "mkn/kul/log.hpp"
 
 #include <tuple>
 #include <memory>
@@ -50,8 +59,8 @@ struct Pointer {
   T* t;
 };
 
-#include "mkn/gpu/any/inc/alloc.ipp"
-#include "mkn/gpu/any/inc/device.ipp"
+#include "mkn/gpu/any/inc/alloc.ipp"   // IWYU pragma: export
+#include "mkn/gpu/any/inc/device.ipp"  // IWYU pragma: export
 
 namespace detail {
 static thread_local std::size_t idx = 0;

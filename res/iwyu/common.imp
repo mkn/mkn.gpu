@@ -1,0 +1,5 @@
+# iwyu mappings for mkn.gpu shared by all backends, see res/iwyu/<backend>.imp
+[
+  # libstdc++ 14 <format> forward declares std::vector, iwyu credits it when only a declaration is needed
+  { symbol: ["std::vector", "private", "<vector>", "public"] },
+]
