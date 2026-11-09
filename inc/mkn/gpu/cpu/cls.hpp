@@ -65,86 +65,64 @@ struct Pointer {
 
 namespace detail {
 static thread_local std::size_t idx = 0;
-// set while this thread captures a Graph, launches are recorded rather than run
-inline thread_local std::vector<std::function<void()>>* capture = nullptr;
+}
 
-// params are the kernel arguments after devmem_replace, by value as a GPU launch passes them
-template <typename F, typename Params>
-void run_kernel(F& f, dim3 const g, dim3 const b, Params& params) {
+template <bool _sync = true, typename F, typename... Args>
+void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
+  KLOG(TRC) << (g.x * g.y * g.z) * (b.x * b.y * b.z);
   gridDim = g;
   blockDim = b;
   std::apply(
-      [&](auto&&... ps) {
+      [&](auto&&... params) {
         for (blockIdx.z = 0; blockIdx.z < g.z; ++blockIdx.z)
           for (blockIdx.y = 0; blockIdx.y < g.y; ++blockIdx.y)
             for (blockIdx.x = 0; blockIdx.x < g.x; ++blockIdx.x)
               for (threadIdx.z = 0; threadIdx.z < b.z; ++threadIdx.z)
                 for (threadIdx.y = 0; threadIdx.y < b.y; ++threadIdx.y)
                   for (threadIdx.x = 0; threadIdx.x < b.x; ++threadIdx.x) {
-                    f(ps...);
-                    ++idx;
+                    f(params...);
+                    ++detail::idx;
                   }
       },
-      params);
+      devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>()));
 
-  idx = 0;
+  detail::idx = 0;
   blockIdx = threadIdx = dim3{0, 0, 0};
 }
-}  // namespace detail
 
-template <bool _sync = true, typename F, typename... Args>
-void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Args&&... args) {
-  KLOG(TRC) << (g.x * g.y * g.z) * (b.x * b.y * b.z);
-  auto params =
-      devmem_replace(std::forward_as_tuple(args...), std::make_index_sequence<sizeof...(Args)>());
-  if (detail::capture)  // recorded, see Graph
-    detail::capture->emplace_back([=]() mutable { detail::run_kernel(f, g, b, params); });
-  else
-    detail::run_kernel(f, g, b, params);
-}
-
-// as the GPU Graph, kernel launches between begin and end are recorded and run by launch.
-//  Only kernel launches are recorded, copies or a Graph launch during capture run immediately
+// as the GPU Graph, but nothing is recorded: capture keeps fn and launch calls it again. Unlike
+//  on a GPU, host code in fn runs on every launch and kernel arguments are read again
 struct Graph {
   Graph() = default;
   Graph(Graph const&) = delete;
   Graph& operator=(Graph const&) = delete;
 
-  Graph& begin(Stream&) {
-    reset();
-    detail::capture = &fns;
-    return *this;
-  }
-
-  Graph& end(Stream&) {
-    detail::capture = nullptr;
-    captured = true;
+  template <typename Fn>
+  Graph& capture(Stream&, Fn&& fn) {
+    replay = std::forward<Fn>(fn);
     return *this;
   }
 
   template <typename Fn>
-  Graph& capture(Stream& s, Fn&& fn) {
-    begin(s);
-    fn();
-    return end(s);
-  }
-
-  Graph& launch(Stream&) {
-    for (auto& fn : fns) fn();
+  Graph& capture(std::vector<Stream>&, Fn&& fn) {
+    replay = std::forward<Fn>(fn);
     return *this;
   }
 
-  std::size_t nodes() const { return fns.size(); }
-  bool empty() const { return !captured; }
-
-  void reset() {
-    fns.clear();
-    captured = false;
+  Graph& launch(Stream&) {
+    if (replay) replay();
+    return *this;
   }
 
-  std::vector<std::function<void()>> fns;
-  bool captured = false;
+  std::size_t nodes() const { return 0; }  // not known without recording
+  bool empty() const { return !replay; }
+  void reset() { replay = {}; }
+
+  std::function<void()> replay;
 };
+
+// as on a GPU stream, prior work has completed
+void inline launch_host_fn(Stream&, void (*fn)(void*), void* data) { fn(data); }
 
 // launch dimensions and native stream, see GlobalLauncher/DeviceLauncher
 struct Launcher {

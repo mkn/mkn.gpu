@@ -9,6 +9,8 @@
 
 #include "mkn/kul/span.hpp"  // IWYU pragma: keep
 #include "mkn/kul/tuple.hpp"
+#include <vector>
+
 #include "mkn/gpu/any/def.hpp"  // IWYU pragma: export
 #include "mkn/gpu/any/cls.hpp"  // IWYU pragma: export
 #include "hip/hip_runtime.h"
@@ -66,26 +68,17 @@ struct StreamEvent {
   bool fin = 0;
 };
 
-// work queued on a stream between begin and end is recorded rather than run, launch then replays
-//  all of it with one call, saving the per launch CPU overhead. Kernel arguments are fixed at
-//  capture, pointers can be captured but host values read at replay need a new capture. Capture
-//  is thread local, other threads keep using their own streams normally meanwhile
+// work queued while capturing is recorded rather than run, launch then replays all of it with
+//  one call, saving the per launch CPU overhead. Kernel arguments are fixed at capture, pointers
+//  can be captured but host values read at replay need a new capture. Capture is thread local,
+//  other threads keep using their own streams normally meanwhile. See doc/tracing/graphs.md
 struct Graph {
   Graph() = default;
   Graph(Graph const&) = delete;
   Graph& operator=(Graph const&) = delete;
-  ~Graph() { reset(); }
-
-  Graph& begin(Stream& s) {
+  ~Graph() {
     reset();
-    MKN_GPU_ASSERT(hipStreamBeginCapture(s(), hipStreamCaptureModeThreadLocal));
-    return *this;
-  }
-
-  Graph& end(Stream& s) {
-    MKN_GPU_ASSERT(hipStreamEndCapture(s(), &graph));
-    MKN_GPU_ASSERT(hipGraphInstantiateWithFlags(&exec, graph, 0));
-    return *this;
+    for (auto& e : events) MKN_GPU_ASSERT(hipEventDestroy(e));
   }
 
   template <typename Fn>
@@ -95,7 +88,30 @@ struct Graph {
     return end(s);
   }
 
-  // asynchronous, sync the stream to wait
+  // work on any of the streams, they become parallel branches of one graph. The other streams
+  //  join the capture by waiting on an event of the first, and rejoin it before the end
+  template <typename Fn>
+  Graph& capture(std::vector<Stream>& streams, Fn&& fn) {
+    if (streams.empty()) return *this;
+    auto& origin = streams[0];
+    while (events.size() < streams.size()) {
+      hipEvent_t e;
+      MKN_GPU_ASSERT(hipEventCreateWithFlags(&e, hipEventDisableTiming));
+      events.emplace_back(e);
+    }
+    begin(origin);
+    MKN_GPU_ASSERT(hipEventRecord(events[0], origin()));
+    for (std::size_t i = 1; i < streams.size(); ++i)
+      MKN_GPU_ASSERT(hipStreamWaitEvent(streams[i](), events[0], 0));
+    fn();
+    for (std::size_t i = 1; i < streams.size(); ++i) {
+      MKN_GPU_ASSERT(hipEventRecord(events[i], streams[i]()));
+      MKN_GPU_ASSERT(hipStreamWaitEvent(origin(), events[i], 0));
+    }
+    return end(origin);
+  }
+
+  // asynchronous, sync the stream to wait, for a multi stream capture the first
   Graph& launch(Stream& s) {
     MKN_GPU_ASSERT(hipGraphLaunch(exec, s()));
     return *this;
@@ -118,7 +134,25 @@ struct Graph {
 
   hipGraph_t graph = nullptr;
   hipGraphExec_t exec = nullptr;
+  std::vector<hipEvent_t> events;  // multi stream fork and join
+
+ private:
+  void begin(Stream& s) {
+    reset();
+    MKN_GPU_ASSERT(hipStreamBeginCapture(s(), hipStreamCaptureModeThreadLocal));
+  }
+
+  Graph& end(Stream& s) {
+    MKN_GPU_ASSERT(hipStreamEndCapture(s(), &graph));
+    MKN_GPU_ASSERT(hipGraphInstantiateWithFlags(&exec, graph, 0));
+    return *this;
+  }
 };
+
+// fn(data) on the host once prior work on the stream completes, fn must not call the GPU API
+void inline launch_host_fn(Stream& s, void (*fn)(void*), void* data) {
+  MKN_GPU_ASSERT(hipLaunchHostFunc(s(), fn, data));
+}
 
 // https://rocm.docs.amd.com/projects/HIP/en/latest/doxygen/html/group___global_defs.html#gaea86e91d3cd65992d787b39b218435a3
 template <typename T>

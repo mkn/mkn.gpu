@@ -30,4 +30,4 @@ rocprofv3 --marker-trace --kernel-trace --output-format csv -d out -- bin/rocm_t
 
 ## CUDA / HIP Graphs — [graphs.md](graphs.md)
 
-Capturing launches once and replaying them: per-launch CPU cost, measured with nsys.
+`Graph` and `GraphLauncher`: launches recorded once and replayed, the per-launch CPU cost measured with nsys.
