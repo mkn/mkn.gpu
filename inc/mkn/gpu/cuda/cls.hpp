@@ -66,6 +66,60 @@ struct StreamEvent {
   bool fin = 0;
 };
 
+// work queued on a stream between begin and end is recorded rather than run, launch then replays
+//  all of it with one call, saving the per launch CPU overhead. Kernel arguments are fixed at
+//  capture, pointers can be captured but host values read at replay need a new capture. Capture
+//  is thread local, other threads keep using their own streams normally meanwhile
+struct Graph {
+  Graph() = default;
+  Graph(Graph const&) = delete;
+  Graph& operator=(Graph const&) = delete;
+  ~Graph() { reset(); }
+
+  Graph& begin(Stream& s) {
+    reset();
+    MKN_GPU_ASSERT(cudaStreamBeginCapture(s(), cudaStreamCaptureModeThreadLocal));
+    return *this;
+  }
+
+  Graph& end(Stream& s) {
+    MKN_GPU_ASSERT(cudaStreamEndCapture(s(), &graph));
+    MKN_GPU_ASSERT(cudaGraphInstantiateWithFlags(&exec, graph, 0));
+    return *this;
+  }
+
+  template <typename Fn>
+  Graph& capture(Stream& s, Fn&& fn) {
+    begin(s);
+    fn();
+    return end(s);
+  }
+
+  // asynchronous, sync the stream to wait
+  Graph& launch(Stream& s) {
+    MKN_GPU_ASSERT(cudaGraphLaunch(exec, s()));
+    return *this;
+  }
+
+  std::size_t nodes() const {
+    std::size_t n = 0;
+    if (graph) MKN_GPU_ASSERT(cudaGraphGetNodes(graph, nullptr, &n));
+    return n;
+  }
+
+  bool empty() const { return exec == nullptr; }
+
+  void reset() {
+    if (exec) MKN_GPU_ASSERT(cudaGraphExecDestroy(exec));
+    if (graph) MKN_GPU_ASSERT(cudaGraphDestroy(graph));
+    exec = nullptr;
+    graph = nullptr;
+  }
+
+  cudaGraph_t graph = nullptr;
+  cudaGraphExec_t exec = nullptr;
+};
+
 //
 
 template <typename T>
