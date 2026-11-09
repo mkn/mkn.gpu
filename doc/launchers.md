@@ -17,6 +17,15 @@ Pipelines, a list of steps run for each data item:
 
 All launches are asynchronous. Call `sync()` to wait for them.
 
+Host steps and managed memory: in every pipeline launcher, a host step of one item can run
+while kernels of other items are still running. Touching managed memory from the host at
+that point is only allowed on devices with concurrent managed access
+(`getConcurrentManagedAccess()`, true on Linux with a Pascal or newer GPU). Without it, for
+example on Windows, any host access to managed memory while a kernel runs, on any stream,
+crashes. On such devices, host steps must not touch managed memory: copy what they need
+to or from host or pinned memory in a device step. `prefetch()` does nothing on these
+devices.
+
 ## DLauncher
 
 Source: `inc/mkn/gpu/any/inc/launchers.ipp`

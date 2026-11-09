@@ -84,7 +84,12 @@ struct Graph {
   template <typename Fn>
   Graph& capture(Stream& s, Fn&& fn) {
     begin(s);
-    fn();
+    try {
+      fn();
+    } catch (...) {
+      cancel(s);
+      throw;
+    }
     return end(s);
   }
 
@@ -103,7 +108,12 @@ struct Graph {
     MKN_GPU_ASSERT(hipEventRecord(events[0], origin()));
     for (std::size_t i = 1; i < streams.size(); ++i)
       MKN_GPU_ASSERT(hipStreamWaitEvent(streams[i](), events[0], 0));
-    fn();
+    try {
+      fn();
+    } catch (...) {
+      cancel(origin, &streams);
+      throw;
+    }
     for (std::size_t i = 1; i < streams.size(); ++i) {
       MKN_GPU_ASSERT(hipEventRecord(events[i], streams[i]()));
       MKN_GPU_ASSERT(hipStreamWaitEvent(origin(), events[i], 0));
@@ -140,6 +150,20 @@ struct Graph {
   void begin(Stream& s) {
     reset();
     MKN_GPU_ASSERT(hipStreamBeginCapture(s(), hipStreamCaptureModeThreadLocal));
+  }
+
+  // fn threw: the other streams rejoin and the capture ends, so every stream can be used again,
+  //  the partial graph is dropped. Errors are ignored, the capture may already be invalidated
+  void cancel(Stream& origin, std::vector<Stream>* const joined = nullptr) noexcept {
+    if (joined)
+      for (std::size_t i = 1; i < joined->size(); ++i) {
+        (void)hipEventRecord(events[i], (*joined)[i]());
+        (void)hipStreamWaitEvent(origin(), events[i], 0);
+      }
+    hipGraph_t partial = nullptr;
+    (void)hipStreamEndCapture(origin(), &partial);
+    if (partial) (void)hipGraphDestroy(partial);
+    (void)hipGetLastError();
   }
 
   Graph& end(Stream& s) {

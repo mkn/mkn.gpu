@@ -12,6 +12,7 @@
 #include <string>
 #include <cstdint>
 #include <cstdlib>
+#include <vector>
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
 #define MKN_GPU_NS mkn::gpu::cuda
@@ -202,9 +203,30 @@ void take_async(T const* p, T* t, cudaStream_t& stream, Size size = 1) {
   MKN_GPU_ASSERT(cudaMemcpyAsync(t, p, size * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
 
+// whether the host can access managed memory while kernels run, and managed memory can be
+//  prefetched to the device. Without it the host must not touch managed memory while any kernel
+//  runs, on any stream
+bool inline getConcurrentManagedAccess(std::size_t const dev = 0) {
+  int v = 0;
+  MKN_GPU_ASSERT(cudaDeviceGetAttribute(&v, cudaDevAttrConcurrentManagedAccess, dev));
+  return v != 0;
+}
+
+namespace detail {
+// cached per thread and device, prefetches can be frequent
+bool inline concurrent_managed_access(std::size_t const dev) {
+  thread_local std::vector<std::int8_t> cache;  // -1 unknown
+  if (cache.size() <= dev) cache.resize(dev + 1, -1);
+  if (cache[dev] < 0) cache[dev] = getConcurrentManagedAccess(dev);
+  return cache[dev] > 0;
+}
+}  // namespace detail
+
 // migrate managed memory to device dev ahead of its use there, asynchronous on stream
+//  a no-op on devices without concurrent managed access, where prefetching to them fails
 template <typename T, typename Size>
 void prefetch(T const* p, Size size, std::size_t const dev = 0, cudaStream_t stream = 0) {
+  if (!detail::concurrent_managed_access(dev)) return;  // unsupported, it is only a hint
   KLOG(TRC);
 #if CUDART_VERSION >= 13000
   cudaMemLocation location{};

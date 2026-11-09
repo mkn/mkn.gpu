@@ -219,6 +219,9 @@ void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
 void inline sync() {}
 void inline sync(std::size_t const /*stream*/) {}
 
+// managed memory is host memory, always accessible
+bool inline getConcurrentManagedAccess(std::size_t const /*dev*/ = 0) { return true; }
+
 // managed memory is host memory, nothing to migrate
 template <typename T, typename Size>
 void prefetch(T const* /*p*/, Size /*size*/, std::size_t const /*dev*/ = 0,

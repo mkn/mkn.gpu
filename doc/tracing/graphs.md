@@ -29,6 +29,9 @@ launcher.sync();
 - Host steps become host nodes (`cudaLaunchHostFunc` during capture). They run in stream
   order after the item's earlier steps, with no handoff to a worker thread. They must not
   call the GPU API.
+- A host node reading managed memory can run while other items' kernels are running. That
+  is only safe on devices with concurrent managed access, see
+  [launchers.md](../launchers.md).
 - Unlike `StreamLauncher` / `ThreadedStreamLauncher`, which run their pipeline once,
   `GraphLauncher` can be called any number of times.
 - Calls are asynchronous; `sync()` waits for completion. Adding a step, or calling

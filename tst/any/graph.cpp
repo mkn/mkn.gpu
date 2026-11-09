@@ -10,6 +10,7 @@
 #include "mkn/gpu/stream.hpp"
 
 #include <chrono>
+#include <stdexcept>
 
 using namespace mkn::gpu;
 
@@ -56,6 +57,40 @@ std::uint32_t test_capture() {
   for (std::size_t i = 0; i < 3; ++i) graph.launch(stream);
   stream.sync();
   return check(vec, K * 4);
+}
+
+// a throw while capturing ends the capture, the streams can be used normally afterwards
+std::uint32_t test_capture_throws() {
+  if constexpr (CompileFlags::withCPU) return 0;  // capture only stores fn on CPU, nothing runs
+  std::vector<Stream> streams(2);
+  ManagedVector<float> vec(NUM, 0);
+  auto* const p = vec.data();
+  auto const throws = [](Graph& graph, auto&& on, auto&& fn) {
+    try {
+      graph.capture(on, fn);
+    } catch (std::runtime_error const&) {
+      return graph.empty();
+    }
+    return false;
+  };
+
+  Graph graph;
+  if (!throws(graph, streams[0], [&] {
+        kernels(streams[0], p);
+        throw std::runtime_error{"single"};
+      }))
+    return 1;
+  if (!throws(graph, streams, [&] {
+        kernels(streams[1], p);
+        throw std::runtime_error{"multi"};
+      }))
+    return 1;
+
+  for (auto& stream : streams) {  // a stream left capturing fails here
+    kernels(stream, p);
+    stream.sync();
+  }
+  return check(vec, K * 2);  // nothing captured ran
 }
 
 template <typename F>
@@ -135,6 +170,12 @@ std::uint32_t check(Data const& data, float const expected) {
 
 // device steps around host steps, replayed: host steps see the device steps before them
 std::uint32_t test_graph_launcher() {
+  // the host step reads managed memory while other items' kernels can run, which is only
+  //  allowed with concurrent managed access, see doc/launchers.md
+  if (!getConcurrentManagedAccess()) {
+    KOUT(NON) << "skipped test_graph_launcher: no concurrent managed access";
+    return 0;
+  }
   Data data;
   auto views = data.datas.data();
   std::vector<float> seen(C, 0);
@@ -207,5 +248,6 @@ std::uint32_t test_launchers() {
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test_capture() + test_overhead() + test_graph_launcher() + test_launchers();
+  return test_capture() + test_capture_throws() + test_overhead() + test_graph_launcher() +
+         test_launchers();
 }
