@@ -38,8 +38,9 @@ launcher.sync();
 - Device steps of different items run at the same time: 4 items each running a ~10 ms
   kernel took 10.5 ms. Host nodes do not: CUDA runs them all on one internal thread, so
   4 items each with a 10 ms host step took 40 ms. `ThreadedStreamLauncher` ran the same
-  host steps in 20 ms with 1 worker thread and 10 ms with 3. When host steps do real work,
-  `ThreadedStreamLauncher` is the better choice.
+  host steps in 20 ms with `n_threads = 1` and 10 ms with `n_threads = 3`. `n_threads`
+  counts extra threads and the calling thread works too, so that is 2 and 4 threads.
+  When host steps do real work, `ThreadedStreamLauncher` is the better choice.
 
 ## Graph
 
@@ -81,10 +82,21 @@ Backends:
 
 - Kernel arguments are fixed at capture time. Pointers are fine as long as the memory
   they point to stays allocated, but a host value that changes between replays (such as a
-  time step `dt`) needs a new capture (`reset()`). This is why inference engines capture
-  one graph per batch size bucket and pad requests to fit.
-- Synchronous calls (`sync`, `cudaMemcpy`, allocation) are not allowed during a capture.
-  They invalidate it, and the call or the end of the capture reports the error.
+  time step `dt`) is not seen by the replay. There are two ways to change it:
+  - Record again (`reset()`, a few hundred microseconds).
+  - Update the instantiated graph in place, which is much cheaper. One option is
+    `cudaGraphExecKernelNodeSetParams` per kernel node. Another is
+    `cudaGraphExecUpdate` with a newly captured graph of the same shape, which skips
+    instantiation; HIP has both. `Graph` / `GraphLauncher` don't use either yet.
+
+  Inference engines hit the same limit with batch shapes: they capture one graph per
+  batch size bucket and pad requests to fit.
+- Synchronous calls are not allowed during a capture: synchronising the capturing stream
+  (`sync`), synchronous `cudaMemcpy` (it runs on the legacy default stream, which
+  implicitly synchronises with the capturing stream), and `cudaMalloc` / `cudaFree`. They
+  invalidate the capture, and the call or the end of the capture reports the error. Their
+  asynchronous versions on the capturing stream are recorded instead: `cudaMemcpyAsync`
+  as a memcpy node, and `cudaMallocAsync` / `cudaFreeAsync` as memory nodes.
 - Recording takes a few hundred microseconds, so graphs only pay off when replayed many
   times.
 
@@ -110,21 +122,22 @@ iteration launches and syncs; 1000 iterations.
 
 ### Pipeline: 4 items x 16 device steps, 200 runs
 
-| per run | StreamLauncher | ThreadedStreamLauncher(0) | GraphLauncher |
-|---|---|---|---|
-| RTX 5080 | 18 ms | 0.15 ms | 0.020–0.025 ms |
-| ROCm iGPU | 21 ms | 2.7 ms | 0.08 ms |
-| CPU | 17 ms | 0.18 ms | 0.17 ms |
+| per run | ThreadedStreamLauncher | GraphLauncher |
+|---|---|---|
+| RTX 5080 | 0.15 ms | 0.020–0.025 ms |
+| ROCm iGPU | 2.7 ms | 0.08 ms |
+| CPU | 0.18 ms | 0.17 ms |
 
-The stream launchers are rebuilt for every run, which is how they are used since they run
-only once. `StreamLauncher` polls every 1 ms between steps, so it measures the polling
-interval rather than the GPU.
+`ThreadedStreamLauncher` here has `n_threads = 0`, so only the calling thread works. It is
+rebuilt for every run, which is how it is used since it runs only once. The test also
+times `StreamLauncher` (17–21 ms), but that number is its 1 ms polling between steps, not
+the GPU.
 
 nsys on the 5080:
 
 ```
  Num Calls  Avg (ns)  Name
-    57,800   2,135.4  cudaLaunchKernel
+    57,800   2,135.4  cudaLaunchKernel    (median 1,954)
      1,207   2,457.9  cudaGraphLaunch     (median 1,593)
          4     593.5  cudaLaunchHostFunc  (capture only)
 
@@ -134,14 +147,17 @@ nsys on the 5080:
          2   250,477  mkn.gpu:GraphLauncher::capture
 ```
 
-- A direct iteration spends about 32 × 1.9 us ≈ 62 us of CPU time launching, more than
-  the GPU needs to run the kernels (~0.6 us each).
+- A direct iteration spends about 32 × 2 us ≈ 62 us of CPU time launching (median
+  `cudaLaunchKernel` 1.95 us, average 2.1 us), more than the GPU needs to run the
+  kernels (~0.6 us each).
 - A graph replay takes one ~1.6 us call. The CPU side of a `GraphLauncher` run is 5.4 us,
   against 204 us for `ThreadedStreamLauncher::join`, which launches 64 kernels and handles
   a completion callback per item.
 - A `GraphLauncher` run (~20 us) is GPU time: 16 kernels in order on each of 4
   concurrent branches.
-- On ROCm, a single-stream graph gains nothing because HIP replays it as ordinary stream
-  launches. `GraphLauncher` still wins by a wide margin (2.7 ms → 0.08 ms): its cost there
-  was the completion callbacks (`hipStreamAddCallback`) and the handoff between threads,
-  which the graph removes. Measure on each platform before relying on graphs.
+- On ROCm, a single-stream graph gains nothing. That is consistent with HIP replaying the
+  graph as ordinary stream launches, with the same per-launch cost, but it hasn't been
+  checked with rocprofv3. `GraphLauncher` still wins by a wide margin (2.7 ms → 0.08 ms).
+  That suggests the cost there is the completion callbacks (`hipStreamAddCallback`) and the
+  handoff between threads, which the graph removes; this hasn't been profiled either.
+  Measure on each platform before relying on graphs.

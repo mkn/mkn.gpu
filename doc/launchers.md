@@ -99,8 +99,10 @@ launcher();  // the calling thread works too, then joins the workers
 launcher.print_times(1e6);  // per item, per step, in ms
 ```
 
-- `n_threads` worker threads plus the calling thread take whichever item is ready next.
-  Host steps of different items run in parallel, up to `n_threads + 1` at once.
+- `n_threads` is the number of extra worker threads. The calling thread works too, inside
+  `launcher()` / `join()`, so `n_threads + 1` threads take whichever item is ready next,
+  and up to that many host steps of different items run in parallel. `n_threads = 0` is
+  the calling thread alone.
 - A step finishing wakes a thread: device steps signal through a completion callback on
   the item's stream. There is no polling.
 - Consecutive device steps are queued together with one callback at the end of the run,
@@ -139,7 +141,7 @@ launcher.sync();
 |---|---|---|
 | 4 items x 16 small device steps, RTX 5080 | 0.02 ms | 0.15 ms |
 | same, ROCm iGPU | 0.08 ms | 2.7 ms |
-| 4 items x one 10 ms host step | 40 ms | 10 ms (3 workers) |
+| 4 items x one 10 ms host step | 40 ms | 10 ms (`n_threads = 3`, 4 threads working) |
 | CPU cost per run | one graph launch, ~5 us | a launch per kernel, a callback per item, ~200 us |
 | kernel arguments, sizes, pointers | fixed when recorded | read on every run |
 | barriers, group steps | no | yes |
