@@ -1,0 +1,10 @@
+# iwyu mappings for the rocm backend, used by the iwyu_rocm profile in mkn.yaml
+[
+  { ref: "common.imp" },
+
+  # hip runtime internals used here, "hip/hip_runtime.h" is the header to include. Not all of
+  # hip/: hiprtc.h, hip_fp16.h, hip_cooperative_groups.h etc. are separate APIs
+  { include: ["@[<\"]hip/(driver_types|hip_runtime_api|hip_version|amd_detail/(amd_hip_runtime|hip_assert))\\.h[>\"]", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["@<__clang_hip_.*>", "private", "\"hip/hip_runtime.h\"", "public"] },
+  { include: ["@<__clang_cuda_.*>", "private", "\"hip/hip_runtime.h\"", "public"] },
+]

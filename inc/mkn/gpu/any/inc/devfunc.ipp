@@ -1,3 +1,5 @@
+// IWYU pragma: private, include "mkn/gpu.hpp"
+// IWYU pragma: friend ".*mkn/gpu/(cpu|cuda|rocm|any)(/.*|\.hpp)"
 
 template <bool sync = true, typename T>
 void __device__ fill_warp_size(T* const t, std::size_t const size, T const val) {

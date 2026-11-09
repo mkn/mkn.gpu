@@ -3,8 +3,13 @@
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/stream.hpp"
+#include "mkn/kul/log.hpp"
 
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <ratio>
+#include <vector>
 
 using namespace mkn::gpu;
 

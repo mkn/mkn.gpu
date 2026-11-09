@@ -44,6 +44,43 @@ profile:
   test: tst/any/(\w).cpp
         tst/cpu/(\w).cpp
 
+# include-what-you-use reports, one per backend, needs iwyu on PATH, see res/iwyu/
+#  mkn clean build -dtOp iwyu_cpu
+- name: iwyu_cpu
+  parent: cpu
+  mod:
+  - name: cpp.iwyu
+    compile:
+      paths: inc tst
+      # any/inc: fragments included inside namespaces
+      ignore: any/inc gpu/cuda gpu/rocm tst/cuda tst/hip
+      headers: -x c++-header
+      args: -Xiwyu --mapping_file=res/iwyu/cpu.imp
+
+#  mkn clean build -dtOp iwyu_rocm -x res/mkn/hipcc_sys
+#  hipcc adds the HIP flags itself, iwyu needs them given
+#  clang finds ROCm itself (ROCM_PATH, /opt/rocm, distro installs), or add --rocm-path
+- name: iwyu_rocm
+  parent: rocm
+  mod:
+  - name: cpp.iwyu
+    compile:
+      paths: inc tst
+      ignore: any/inc gpu/cpu gpu/cuda tst/cpu tst/cuda
+      args: -x hip --offload-arch=gfx1100 --offload-host-only -nogpulib
+            -Xiwyu --mapping_file=res/iwyu/rocm.imp
+
+#  mkn clean build -dtOp iwyu_cuda -x res/mkn/clang_cuda
+#  CUDA 13 needs iwyu 0.25+ (clang 21+)
+- name: iwyu_cuda
+  parent: cuda
+  mod:
+  - name: cpp.iwyu
+    compile:
+      paths: inc tst
+      ignore: any/inc gpu/cpu gpu/rocm tst/cpu tst/hip
+      args: --cuda-host-only -Xiwyu --mapping_file=res/iwyu/cuda.imp
+
 - name: mem_test
   parent: headers
   main: tst/mem/test_alloc.cpp

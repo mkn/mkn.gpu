@@ -1,9 +1,15 @@
 
-#include <cassert>
-#include <algorithm>
-
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/asio.hpp"
+#include "mkn/kul/log.hpp"
+#include "mkn/kul/span.hpp"
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include <algorithm>
+#include <memory>
 
 static constexpr std::uint32_t BATCHES = 2;
 static constexpr std::uint32_t NUM = 1024 * 1024 * BATCHES;

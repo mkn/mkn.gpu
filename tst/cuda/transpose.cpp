@@ -8,7 +8,14 @@
 //                   all hit the same bank, 32 way bank conflicts
 
 #define MKN_GPU_FN_PER_NS 1
-#include "mkn/gpu/cuda.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
+// MKN_GPU_FN_PER_NS: the backend header is used directly, not mkn/gpu.hpp
+// IWYU pragma: no_include "mkn/gpu.hpp"
+#include "mkn/gpu/cuda.hpp"  // IWYU pragma: keep
+#include "mkn/kul/log.hpp"
 
 using namespace mkn::gpu::cuda;
 

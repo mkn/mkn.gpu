@@ -1,19 +1,25 @@
+// IWYU pragma: private, include "mkn/gpu.hpp"
+// IWYU pragma: friend ".*mkn/gpu/(cpu|cuda|rocm|any)(/.*|\.hpp)"
+
 #ifndef MKN_GPU_CUDA_CLS_HPP
 #define MKN_GPU_CUDA_CLS_HPP
 
-#include <cstddef>
-#include <functional>
-
-#include <cuda_runtime.h>
+// device.ipp uses devmem_replace from itself, iwyu credits it to the public header
+// IWYU pragma: no_include "mkn/gpu.hpp"
 
 #include "mkn/kul/log.hpp"
-#include "mkn/kul/span.hpp"
+#include "mkn/kul/span.hpp"  // IWYU pragma: keep
 #include "mkn/kul/tuple.hpp"
+#include "mkn/gpu/any/def.hpp"   // IWYU pragma: export
+#include "mkn/gpu/any/cls.hpp"   // IWYU pragma: export
+#include "mkn/gpu/cuda/def.hpp"  // IWYU pragma: export
 
-#include "mkn/gpu/any/def.hpp"
-#include "mkn/gpu/any/cls.hpp"
-
-#include "mkn/gpu/cuda/def.hpp"
+#include <cuda_runtime.h>
+#include <cstddef>
+#include <functional>
+#include <stdexcept>
+#include <tuple>
+#include <utility>
 
 namespace MKN_GPU_NS {
 
@@ -79,8 +85,8 @@ struct Pointer {
   cudaPointerAttributes attributes;
 };
 
-#include "mkn/gpu/any/inc/alloc.ipp"
-#include "mkn/gpu/any/inc/device.ipp"
+#include "mkn/gpu/any/inc/alloc.ipp"   // IWYU pragma: export
+#include "mkn/gpu/any/inc/device.ipp"  // IWYU pragma: export
 
 template <bool _sync = true, typename F, typename... Args>
 void launch(F&& f, dim3 g, dim3 b, std::size_t ds, cudaStream_t& s, Args&&... args) {

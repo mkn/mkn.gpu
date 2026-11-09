@@ -49,6 +49,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <cstddef>
+#include <functional>
+#include <iterator>
+#include <memory>
+#include <type_traits>
+#include <utility>
+#include <algorithm>
 
 namespace mkn::gpu::detail {
 template <typename Type>

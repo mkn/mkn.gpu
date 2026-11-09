@@ -1,5 +1,11 @@
 #define MKN_GPU_FN_PER_NS 1
-#include "mkn/gpu/cuda.hpp"
+#include <cstdint>
+#include <vector>
+
+// MKN_GPU_FN_PER_NS: the backend header is used directly, not mkn/gpu.hpp
+// IWYU pragma: no_include "mkn/gpu.hpp"
+#include "mkn/gpu/cuda.hpp"  // IWYU pragma: keep
+#include "mkn/kul/log.hpp"
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;

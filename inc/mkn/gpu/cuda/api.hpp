@@ -1,11 +1,14 @@
+// IWYU pragma: private, include "mkn/gpu.hpp"
+// IWYU pragma: friend ".*mkn/gpu/(cpu|cuda|rocm|any)(/.*|\.hpp)"
+
 #ifndef MKN_GPU_CUDA_API_HPP
 #define MKN_GPU_CUDA_API_HPP
 
-#include <cstdint>
+#include "mkn/gpu/cuda/def.hpp"  // IWYU pragma: export
 
 #include <cuda_runtime.h>
-
-#include "mkn/gpu/cuda/def.hpp"
+#include <cstdint>
+#include <cstddef>
 
 namespace mkn::gpu::cuda {
 

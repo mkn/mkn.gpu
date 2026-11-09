@@ -1,8 +1,11 @@
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/trace.hpp"
+#include "mkn/kul/log.hpp"
 
 #include <vector>
+#include <cstddef>
+#include <cstdint>
 
 using namespace mkn::gpu;
 

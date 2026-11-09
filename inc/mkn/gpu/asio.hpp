@@ -38,7 +38,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
 #endif
 
+#include "mkn/gpu.hpp"
 #include "mkn/kul/span.hpp"
+
+#include <cassert>
+#include <cstdint>
+#include <memory>
+#include <cstddef>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace mkn::gpu::asio {
 

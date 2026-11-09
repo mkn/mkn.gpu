@@ -1,6 +1,12 @@
 // the README.md example, keep in sync
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/log.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <tuple>
+#include <vector>
 
 using namespace mkn::gpu;
 

@@ -31,18 +31,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef MKN_GPU_HPP
 #define MKN_GPU_HPP
 
+// __device__ comes from the backend headers it includes
+// IWYU pragma: no_include "mkn/gpu.hpp"
+// IWYU pragma: no_include "hip/hip_runtime.h"
+// IWYU pragma: no_include <cuda_runtime.h>
+
 #include "mkn/gpu/def.hpp"
 
+#include <cstdint>
+
 #if MKN_GPU_ROCM
-#include "mkn/gpu/rocm.hpp"
+#include "mkn/gpu/rocm.hpp"  // IWYU pragma: export
 #endif
 
 #if MKN_GPU_CUDA
-#include "mkn/gpu/cuda.hpp"
+#include "mkn/gpu/cuda.hpp"  // IWYU pragma: export
 #endif
 
 #if MKN_GPU_CPU
-#include "mkn/gpu/cpu.hpp"
+#include "mkn/gpu/cpu.hpp"  // IWYU pragma: export
 #endif
 
 namespace mkn::gpu {
