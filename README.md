@@ -45,6 +45,12 @@ kernel's own limit when its register or shared memory use is high, and enough bl
 On the CPU backend the same code runs on the host: `DeviceMem` and managed memory are host memory
 and the lambda runs once per element in a loop.
 
+## Launchers
+
+`DLauncher` / `GLauncher` for single kernels, `StreamLauncher` / `ThreadedStreamLauncher` /
+`GraphLauncher` for pipelines of steps per data item, and when to use which: see
+[doc/launchers.md](doc/launchers.md). Profiler annotations and measurements: [doc/tracing](doc/tracing).
+
 ## Backend
 
 Resolved at compile time from the headers available, see [inc/mkn/gpu/def.hpp](inc/mkn/gpu/def.hpp):

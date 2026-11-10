@@ -27,3 +27,7 @@ rocprofv3 --marker-trace --kernel-trace --output-format csv -d out -- bin/rocm_t
 - roctx requires `-DMKN_GPU_TRACE=1` and linking `rocprofiler-sdk-roctx`, as the `rocm_trace` profile does.
 - `trace::mark` shows as a zero-length entry (`before launch`).
 - Correlate markers with kernels by timestamp.
+
+## CUDA / HIP Graphs — [graphs.md](graphs.md)
+
+`Graph` and `GraphLauncher`: launches recorded once and replayed, the per-launch CPU cost measured with nsys.

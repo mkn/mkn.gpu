@@ -16,6 +16,7 @@
 #include <tuple>
 #include <memory>
 #include <utility>
+#include <vector>
 #include <functional>
 #include <type_traits>
 
@@ -88,6 +89,40 @@ void launch(F f, dim3 g, dim3 b, std::size_t /*ds*/, std::size_t /*stream*/, Arg
   detail::idx = 0;
   blockIdx = threadIdx = dim3{0, 0, 0};
 }
+
+// as the GPU Graph, but nothing is recorded: capture keeps fn and launch calls it again. Unlike
+//  on a GPU, host code in fn runs on every launch and kernel arguments are read again
+struct Graph {
+  Graph() = default;
+  Graph(Graph const&) = delete;
+  Graph& operator=(Graph const&) = delete;
+
+  template <typename Fn>
+  Graph& capture(Stream&, Fn&& fn) {
+    replay = std::forward<Fn>(fn);
+    return *this;
+  }
+
+  template <typename Fn>
+  Graph& capture(std::vector<Stream>&, Fn&& fn) {
+    replay = std::forward<Fn>(fn);
+    return *this;
+  }
+
+  Graph& launch(Stream&) {
+    if (replay) replay();
+    return *this;
+  }
+
+  std::size_t nodes() const { return 0; }  // not known without recording
+  bool empty() const { return !replay; }
+  void reset() { replay = {}; }
+
+  std::function<void()> replay;
+};
+
+// as on a GPU stream, prior work has completed
+void inline launch_host_fn(Stream&, void (*fn)(void*), void* data) { fn(data); }
 
 // launch dimensions and native stream, see GlobalLauncher/DeviceLauncher
 struct Launcher {
