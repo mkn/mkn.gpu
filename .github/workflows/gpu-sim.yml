@@ -1,0 +1,60 @@
+name: GPU Simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so this builds
+# the rocm profile (tst/any and tst/hip) with hipcc for gfx942 and runs it on a
+# simulated AMD MI300X (https://github.com/pantheongpu/pantheonsim). A simulator
+# cannot reproduce hardware-specific behavior or timing, so it complements
+# real-GPU testing and does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - "inc/**"
+      - "tst/**"
+      - "res/mkn/**"
+      - "mkn.yaml"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CURL_GET: curl -fL --retry 3 --retry-delay 2
+  PATH_GET: https://github.com/mkn/mkn/releases/download/latest
+
+jobs:
+  rocm:
+    name: rocm profile (ROCm 7.1 and simulated MI300X)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and ROCm
+        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        with:
+          gpu: amd/mi300x
+          cuda-toolkit: none
+          rocm: "7.1"
+
+      # Same download as build.yml.
+      - name: Get mkn
+        run: |
+          $CURL_GET -o mkn ${PATH_GET}/mkn_nix
+          chmod +x mkn
+
+      # -O optimises (unoptimised HIP is a known simulator weak spot), the arch
+      # is not set by the profile. the test command builds the tst/ binaries, run runs them.
+      - name: Build and test
+        run: |
+          KLOG=3 vgpu run ./mkn clean build test run -dtOp rocm -x res/mkn/hipcc \
+            -a "--offload-arch=gfx942" -W 9
