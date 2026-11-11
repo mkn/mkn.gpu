@@ -43,7 +43,8 @@ jobs:
           persist-credentials: false
 
       - name: Set up the simulated GPU and CUDA
-        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        # pantheonsim fork: cudaFuncGetAttributes thread limit fix, until it is upstream
+        uses: PhilipDeegan/pantheonsim@be4ba8a98795fbee4055fefa3a1294d28ea563fd
         with:
           gpu: nvidia/h100
           cuda-toolkit: "12.6"
