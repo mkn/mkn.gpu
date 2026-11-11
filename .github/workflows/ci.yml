@@ -113,12 +113,12 @@ jobs:
             -a "-arch=sm_90 -O3" -l "-cudart shared"
 
       # clang_cuda.yaml defaults to sm_120, which needs CUDA >= 12.8. clang 18, the runner's
-      #  default, fails on libstdc++ 14's __float128 in device code, clang 19 does not
+      #  default, fails on libstdc++ 14's __float128 in device code, clang 19 does not.
+      #  clang_cuda.yaml links -lcudart, the shared cudart the simulator needs
       - name: Build and test (clang)
         if: matrix.cc == 'clang'
         run: |
           sudo apt-get install -y -qq --no-install-recommends clang-19
           sed -e 's/sm.arch: 120/sm.arch: 90/' -e 's/clang++ /clang++-19 /g' \
             res/mkn/clang_cuda.yaml > res/mkn/clang_cuda_ci.yaml
-          KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda -x res/mkn/clang_cuda_ci \
-            -l "--cudart=shared" -W 9
+          KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda -x res/mkn/clang_cuda_ci -W 9
