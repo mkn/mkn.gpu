@@ -93,8 +93,8 @@ jobs:
 
       # the simulator needs a shared cudart
       - name: Set up the simulated GPU and CUDA
-        # pantheonsim fork: cudaFuncGetAttributes thread limit fix, until it is upstream
-        uses: PhilipDeegan/pantheonsim@be4ba8a98795fbee4055fefa3a1294d28ea563fd
+        # pantheonsim main: the cudaFuncGetAttributes thread limit fix is not in a release yet
+        uses: pantheongpu/pantheonsim@1dc4331175956285e3da895444dd0dadccb21b08
         with:
           gpu: nvidia/h100
           cuda-toolkit: "12.6"
