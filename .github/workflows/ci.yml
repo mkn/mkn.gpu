@@ -1,0 +1,127 @@
+name: CI
+
+# Every build in one workflow, one entry per push or pull request in the Actions tab.
+#  cpu: the cpu profile with gcc
+#  rocm: the rocm profile with hipcc on a simulated AMD MI300X
+#  cuda: the cuda profile with nvcc and with clang on a simulated NVIDIA H100
+# The GPU jobs run on PantheonSim (https://github.com/pantheongpu/pantheonsim), which has no
+#  real GPU behind it: they are functional only, timings mean nothing, and they complement
+#  real-GPU testing rather than replace it.
+#
+# The simulator build is cached. A cache saved by a pull request is only visible to that pull
+#  request, one saved on master is visible to all of them, so this also runs on master, and
+#  weekly to keep the cache from expiring (7 days unused).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: "0 3 * * 1"
+
+# a newer push to a pull request replaces its running build, master's builds always finish
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CURL_GET: curl -fL --retry 3 --retry-delay 2
+  PATH_GET: https://github.com/mkn/mkn/releases/download/latest
+
+jobs:
+  cpu:
+    name: cpu (gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Get mkn
+        run: |
+          $CURL_GET -o mkn ${PATH_GET}/mkn_nix
+          chmod +x mkn
+
+      - name: Build and test
+        run: KLOG=3 ./mkn clean build run -dtKOgp cpu -a "-std=c++20" test -W 9
+
+  rocm:
+    name: rocm (hipcc, ROCm 7.1, simulated MI300X)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and ROCm
+        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        with:
+          gpu: amd/mi300x
+          cuda-toolkit: none
+          rocm: "7.1"
+
+      - name: Get mkn
+        run: |
+          $CURL_GET -o mkn ${PATH_GET}/mkn_nix
+          chmod +x mkn
+
+      # -O optimises (unoptimised HIP is a known simulator weak spot), the arch is not set by
+      #  the profile
+      - name: Build and test
+        run: |
+          KLOG=3 vgpu run ./mkn clean build test run -dtOp rocm -x res/mkn/hipcc \
+            -a "--offload-arch=gfx942" -W 9
+
+  cuda:
+    name: cuda (${{ matrix.cc }}, CUDA 12.6, simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [nvcc, clang]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      # the simulator needs a shared cudart
+      - name: Set up the simulated GPU and CUDA
+        # pantheonsim main: the cudaFuncGetAttributes thread limit fix is not in a release yet
+        uses: pantheongpu/pantheonsim@1dc4331175956285e3da895444dd0dadccb21b08
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "12.6"
+          rocm: none
+
+      - name: Get mkn
+        run: |
+          $CURL_GET -o mkn ${PATH_GET}/mkn_nix
+          chmod +x mkn
+
+      - name: Build and test (nvcc)
+        if: matrix.cc == 'nvcc'
+        run: |
+          # no -O/-W: maiken treats nvcc as gcc, nvcc rejects gcc's optimise/warning flags
+          KLOG=3 vgpu run ./mkn clean build test run -dtp cuda -x res/mkn/nvcc \
+            -a "-arch=sm_90 -O3" -l "-cudart shared"
+
+      # clang_cuda.yaml defaults to sm_120, which needs CUDA >= 12.8. clang 18, the runner's
+      #  default, fails on libstdc++ 14's __float128 in device code, clang 19 does not.
+      #  clang_cuda.yaml links -lcudart, the shared cudart the simulator needs. mkn.env.automatic
+      #  off: it prepends the toolkit's lib dir (path:) to LD_LIBRARY_PATH for the tests it runs,
+      #  ahead of the simulator's cudart
+      - name: Build and test (clang)
+        if: matrix.cc == 'clang'
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends clang-19
+          sed -e 's/sm.arch: 120/sm.arch: 90/' -e 's/clang++ /clang++-19 /g' \
+            -e 's/^property:$/property:\n  mkn.env.automatic: false/' \
+            res/mkn/clang_cuda.yaml > res/mkn/clang_cuda_ci.yaml
+          KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda -x res/mkn/clang_cuda_ci -W 9

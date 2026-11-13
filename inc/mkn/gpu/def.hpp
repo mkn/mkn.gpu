@@ -56,6 +56,15 @@
 #define MKN_GPU_CPU 0
 #endif
 
+// unroll the following loop n times: nvcc only knows "#pragma unroll", gcc only
+//  "#pragma GCC unroll", clang (CUDA and hipcc) takes both
+#define MKN_GPU_PRAGMA(x) _Pragma(#x)
+#if defined(__NVCC__)
+#define MKN_GPU_UNROLL(n) MKN_GPU_PRAGMA(unroll n)
+#else
+#define MKN_GPU_UNROLL(n) MKN_GPU_PRAGMA(GCC unroll n)
+#endif
+
 namespace mkn::gpu {
 
 struct CompileFlags {

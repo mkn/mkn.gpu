@@ -34,22 +34,21 @@ std::uint32_t mismatch(T const& a, T const& b) {
 static constexpr std::uint32_t LIVE = 96;  // values held per thread, over 64 regs at 1024 threads
 
 // all LIVE values stay in registers across the runtime trip count loop, which needs the inner
-//  loops unrolled so every v[] index is a compile time constant, otherwise v is in local memory.
-//  "#pragma GCC unroll" is honoured by clang (CUDA and hipcc) as well as gcc (CPU), plain
-//  "#pragma unroll" is an unknown pragma error for gcc
+//  loops unrolled so every v[] index is a compile time constant, otherwise v is in local memory
 __global__ void heavy(float* out, float const* in, std::size_t const size,
                       std::uint32_t const rounds) {
   auto const i = mkn::gpu::idx();
   if (i >= size) return;
   auto const x = in[i];
   float v[LIVE];
-#pragma GCC unroll 128
+  MKN_GPU_UNROLL(128)
   for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = x + k;
-  for (std::uint32_t r = 0; r < rounds; ++r)
-#pragma GCC unroll 128
+  for (std::uint32_t r = 0; r < rounds; ++r) {
+    MKN_GPU_UNROLL(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = v[k] * x + v[(k + 1) % LIVE];
+  }
   float sum = 0;
-#pragma GCC unroll 128
+  MKN_GPU_UNROLL(128)
   for (std::uint32_t k = 0; k < LIVE; ++k) sum += v[k];
   out[i] = sum;
 }
@@ -82,13 +81,14 @@ std::uint32_t test_device_fit() {
     if (i >= size) return;
     auto const x = in[i];
     float v[LIVE];
-#pragma GCC unroll 128
+    MKN_GPU_UNROLL(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = x + k;
-    for (std::uint32_t r = 0; r < rounds; ++r)
-#pragma GCC unroll 128
+    for (std::uint32_t r = 0; r < rounds; ++r) {
+      MKN_GPU_UNROLL(128)
       for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = v[k] * x + v[(k + 1) % LIVE];
+    }
     float sum = 0;
-#pragma GCC unroll 128
+    MKN_GPU_UNROLL(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) sum += v[k];
     out[i] = sum;
   };
