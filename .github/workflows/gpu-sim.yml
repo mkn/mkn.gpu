@@ -3,7 +3,7 @@ name: GPU Simulator
 # Optional, non-required check. The hosted runners have no GPU, so this builds
 # the rocm profile (tst/any and tst/hip) with hipcc for gfx942 and runs it on a
 # simulated AMD MI300X (https://github.com/pantheongpu/pantheonsim), and
-# tst/cuda/particle_push.cpp with clang on a simulated RTX 5090. A simulator
+# tst/any/particle_push.cpp (in the rocm job too) with clang on a simulated RTX 5090. A simulator
 # cannot reproduce hardware-specific behavior or timing, so it complements
 # real-GPU testing and does not replace it.
 
@@ -60,7 +60,7 @@ jobs:
           KLOG=3 vgpu run ./mkn clean build test run -dtOp rocm -x res/mkn/hipcc \
             -a "--offload-arch=gfx942" -W 9
 
-  # tst/cuda/particle_push.cpp alone (cuda_particle_push profile) on a simulated RTX 5090
+  # tst/any/particle_push.cpp alone (cuda_particle_push profile) on a simulated RTX 5090
   #  (sm_120, as res/mkn/clang_cuda.yaml). It passes on NVIDIA GPUs and fails on the
   #  simulator: about a third of the moves the device registers are missing.
   cuda:

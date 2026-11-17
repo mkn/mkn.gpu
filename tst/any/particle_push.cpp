@@ -4,9 +4,10 @@
 // same particles: the moves registered on the device must equal the host's, and every moved
 // particle must be registered.
 //
-// Passes on NVIDIA GPUs. Under PantheonSim (simulated nvidia/h100) about a third of the
-// registrations made in the out of line call (per_particle_still_in_ghost_box) are missing;
-// with that function inlined it passes. See .github/workflows/gpu-sim.yml.
+// Passes on NVIDIA GPUs. Under PantheonSim's CUDA backend (simulated nvidia/h100, rtx5090) about
+// a third of the registrations made in the out of line call (per_particle_still_in_ghost_box) are
+// missing; with that function inlined it passes. Any backend: cuda, rocm and cpu profiles; see
+// .github/workflows/gpu-sim.yml.
 
 #include "mkn/gpu.hpp"
 #include "mkn/kul/log.hpp"
@@ -19,6 +20,7 @@
 #include <vector>
 
 #define HD __host__ __device__
+#define NOINLINE __attribute__((noinline))  // __noinline__ in CUDA / HIP, also for g++
 
 using u64 = unsigned long long;
 
@@ -82,8 +84,8 @@ struct Tracker {  // the cell and tile a particle comes from, copied before the 
 };
 
 HD inline u64 increment_return_old(u64& t) {
-#ifdef __CUDA_ARCH__
-  return atomicAdd(&t, u64{1});
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__) || MKN_GPU_CPU
+  return atomicAdd(&t, u64{1});  // the device's, or the cpu backend's
 #else
   return __atomic_fetch_add(&t, u64{1}, __ATOMIC_SEQ_CST);
 #endif
@@ -177,8 +179,8 @@ struct Pusher {
 
   // out of line (a PTX .func): every argument by reference, the tracker a temporary of the
   //  caller. Inlined, the simulator gets it right.
-  HD __noinline__ void per_particle_still_in_ghost_box(Particle& particle, Layout const& layout,
-                                                       Tracker& pt, u64& pidx, EM const& em) {
+  HD NOINLINE void per_particle_still_in_ghost_box(Particle& particle, Layout const& layout,
+                                                   Tracker& pt, u64& pidx, EM const& em) {
     accelerate(particle, em, coef1);
     particle.iCell() = advance(particle, layout.halfDtOverDl);
     set.move_check(pt, pidx, particle);
