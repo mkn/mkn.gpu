@@ -20,6 +20,13 @@ profile:
   test: tst/any/(\w).cpp
         tst/cuda/(\w).cpp
 
+# a particle push that the CUDA simulator (PantheonSim) gets wrong, see
+#  .github/workflows/gpu-sim.yml; also part of the cuda profile
+- name: cuda_particle_push
+  parent: headers
+  arg: -DMKN_GPU_CUDA=1
+  test: tst/cuda/particle_push.cpp
+
 # profiler annotations, see inc/mkn/gpu/trace.hpp
 #  nsys profile --trace=cuda,nvtx <test binary>
 - name: cuda_trace
