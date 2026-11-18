@@ -56,6 +56,13 @@
 #define MKN_GPU_CPU 0
 #endif
 
+// mkn.kul functions that can also run on a device are __host__ __device__ with a GPU backend,
+//  mkn.kul leaves MKN_KUL_FN_SIG_ALL as host only unless it's defined first, so include mkn.gpu
+//  before mkn.kul
+#if !defined(MKN_KUL_FN_SIG_ALL) && (MKN_GPU_CUDA || MKN_GPU_ROCM)
+#define MKN_KUL_FN_SIG_ALL __host__ __device__
+#endif
+
 namespace mkn::gpu {
 
 struct CompileFlags {
