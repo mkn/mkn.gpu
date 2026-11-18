@@ -56,13 +56,11 @@
 #define MKN_GPU_CPU 0
 #endif
 
-// unroll the following loop n times: nvcc only knows "#pragma unroll", gcc only
-//  "#pragma GCC unroll", clang (CUDA and hipcc) takes both
-#define MKN_GPU_PRAGMA(x) _Pragma(#x)
-#if defined(__NVCC__)
-#define MKN_GPU_UNROLL(n) MKN_GPU_PRAGMA(unroll n)
-#else
-#define MKN_GPU_UNROLL(n) MKN_GPU_PRAGMA(GCC unroll n)
+// mkn.kul functions that can also run on a device are __host__ __device__ with a GPU backend,
+//  mkn.kul leaves MKN_KUL_FN_SIG_ALL as host only unless it's defined first, so include mkn.gpu
+//  before mkn.kul
+#if !defined(MKN_KUL_FN_SIG_ALL) && (MKN_GPU_CUDA || MKN_GPU_ROCM)
+#define MKN_KUL_FN_SIG_ALL __host__ __device__
 #endif
 
 namespace mkn::gpu {

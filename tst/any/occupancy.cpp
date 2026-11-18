@@ -4,6 +4,7 @@
 //  ncu --section LaunchStats --section Occupancy <test binary>
 
 #include "mkn/gpu.hpp"
+#include "mkn/kul/lang/cpp/compiler/def/unroll_loop.hpp"
 #include "mkn/kul/log.hpp"
 
 #include <cstddef>
@@ -41,14 +42,14 @@ __global__ void heavy(float* out, float const* in, std::size_t const size,
   if (i >= size) return;
   auto const x = in[i];
   float v[LIVE];
-  MKN_GPU_UNROLL(128)
+  MKN_KUL_UNROLL_LOOP(128)
   for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = x + k;
   for (std::uint32_t r = 0; r < rounds; ++r) {
-    MKN_GPU_UNROLL(128)
+    MKN_KUL_UNROLL_LOOP(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = v[k] * x + v[(k + 1) % LIVE];
   }
   float sum = 0;
-  MKN_GPU_UNROLL(128)
+  MKN_KUL_UNROLL_LOOP(128)
   for (std::uint32_t k = 0; k < LIVE; ++k) sum += v[k];
   out[i] = sum;
 }
@@ -81,14 +82,14 @@ std::uint32_t test_device_fit() {
     if (i >= size) return;
     auto const x = in[i];
     float v[LIVE];
-    MKN_GPU_UNROLL(128)
+    MKN_KUL_UNROLL_LOOP(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = x + k;
     for (std::uint32_t r = 0; r < rounds; ++r) {
-      MKN_GPU_UNROLL(128)
+      MKN_KUL_UNROLL_LOOP(128)
       for (std::uint32_t k = 0; k < LIVE; ++k) v[k] = v[k] * x + v[(k + 1) % LIVE];
     }
     float sum = 0;
-    MKN_GPU_UNROLL(128)
+    MKN_KUL_UNROLL_LOOP(128)
     for (std::uint32_t k = 0; k < LIVE; ++k) sum += v[k];
     out[i] = sum;
   };
