@@ -106,7 +106,7 @@ struct GraphLauncher {
     nodes.reserve(datas.size() * fns.size());  // stable, the graph keeps their addresses
     for (std::uint32_t i = 0; i < datas.size(); ++i)
       for (auto& fn : fns)
-        if (fn->mode == StreamFunctionMode::HOST_WAIT) nodes.emplace_back(fn.get(), i);
+        if (fn->mode == StreamFunctionMode::HOST_WAIT) nodes.push_back({fn.get(), i});
 
     trace::Range range{"GraphLauncher::capture"};
     graph.capture(streams, [this] {

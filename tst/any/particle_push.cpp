@@ -7,7 +7,7 @@
 // Passes on NVIDIA GPUs. Under PantheonSim's CUDA backend (simulated nvidia/h100, rtx5090) about
 // a third of the registrations made in the out of line call (per_particle_still_in_ghost_box) are
 // missing; with that function inlined it passes. Any backend: cuda, rocm and cpu profiles; see
-// .github/workflows/gpu-sim.yml.
+// .github/workflows/ci.yml.
 
 #include "mkn/gpu.hpp"
 #include "mkn/kul/log.hpp"

@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu/cuda/cls.hpp"  // IWYU pragma: export
 
 #include <cuda_runtime.h>  // IWYU pragma: export
+#include <cuda.h>          // CUDA_VERSION
 
 //
 

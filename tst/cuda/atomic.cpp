@@ -7,10 +7,6 @@
 #include "mkn/gpu/cuda.hpp"  // IWYU pragma: keep
 #include "mkn/kul/log.hpp"
 
-static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
-static constexpr uint32_t NUM = WIDTH * HEIGHT;
-static constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
-
 namespace NS0 {
 template <typename T>
 struct S {
@@ -31,6 +27,9 @@ __global__ void vectoradd(T* a, T const* b, T const* c) {
 
 template <typename Float>
 uint32_t test() {
+  // function scope: nvcc's device pass reports unused namespace scope constants (#177-D)
+  constexpr uint32_t WIDTH = 1024, HEIGHT = 1024, NUM = WIDTH * HEIGHT;
+  constexpr uint32_t THREADS_PER_BLOCK_X = 16, THREADS_PER_BLOCK_Y = 16;
   std::vector<Float> hostB(NUM), hostC(NUM);
   for (uint32_t i = 0; i < NUM; i++) hostB[i] = i;
   for (uint32_t i = 0; i < NUM; i++) hostC[i] = i * 100.0f;

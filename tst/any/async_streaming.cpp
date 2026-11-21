@@ -251,6 +251,9 @@ std::uint32_t test_threaded_host_launch(std::size_t const& nthreads = 2) {
   for (std::size_t i = 0; i < vecs.size(); ++i) datas[i] = vecs[i].data();
   auto views = datas.data();
 
+  // defined here, nvcc does not allow an extended __device__ lambda inside a generic lambda
+  auto const times_two = [] __device__(T* const view) { view[mkn::gpu::idx()] *= 2; };
+
   ThreadedStreamLauncher launcher{vecs, nthreads};
   launcher.dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 1; })
       .host([&](auto const i) {
@@ -259,8 +262,7 @@ std::uint32_t test_threaded_host_launch(std::size_t const& nthreads = 2) {
         stream.sync();
         for (auto& e : vecs[i]) e += 1;
         prefetch(vecs[i].data(), NUM, 0, stream());
-        auto* view = vecs[i].data();
-        mkn::gpu::DLauncher{NUM}.stream(stream, [=] __device__() { view[mkn::gpu::idx()] *= 2; });
+        mkn::gpu::DLauncher{NUM}.stream(stream, times_two, vecs[i].data());
       })
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; })
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] *= 10; })();
