@@ -94,8 +94,8 @@ jobs:
 
       # the simulator needs a shared cudart
       - name: Set up the simulated GPU and CUDA
-        # pantheonsim main: the cudaFuncGetAttributes thread limit fix is not in a release yet
-        uses: pantheongpu/pantheonsim@1dc4331175956285e3da895444dd0dadccb21b08
+        # pantheonsim main: the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@88a6b213c06312d331cf82bb7d1bf914efe417c3
         with:
           gpu: nvidia/h100
           cuda-toolkit: "12.6"
@@ -128,8 +128,8 @@ jobs:
           KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda -x res/mkn/clang_cuda_ci -W 9
 
   # tst/any/particle_push.cpp alone (cuda_particle_push profile) on a simulated RTX 5090
-  #  (sm_120, as res/mkn/clang_cuda.yaml). It passes on NVIDIA GPUs and fails on the
-  #  simulator: about a third of the moves the device registers are missing.
+  #  (sm_120, as res/mkn/clang_cuda.yaml). Simulators before pantheonsim#691's fix lost about
+  #  a third of the moves the device registers.
   cuda_particle_push:
     name: cuda particle push (CUDA 13.0, clang 22, simulated RTX 5090)
     runs-on: ubuntu-24.04
@@ -149,10 +149,12 @@ jobs:
 
       - name: Set up the simulated GPU and CUDA
         id: sim
-        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        # pantheonsim main: the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@88a6b213c06312d331cf82bb7d1bf914efe417c3
         with:
           gpu: nvidia/rtx5090
           cuda-toolkit: "13.0"
+          rocm: none
 
       - name: Get mkn
         run: |

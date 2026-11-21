@@ -4,9 +4,9 @@
 // same particles: the moves registered on the device must equal the host's, and every moved
 // particle must be registered.
 //
-// Passes on NVIDIA GPUs. Under PantheonSim's CUDA backend (simulated nvidia/h100, rtx5090) about
-// a third of the registrations made in the out of line call (per_particle_still_in_ghost_box) are
-// missing; with that function inlined it passes. Any backend: cuda, rocm and cpu profiles; see
+// Passes on NVIDIA GPUs. PantheonSim's CUDA backend (simulated nvidia/h100, rtx5090) lost about a
+// third of the registrations made in the out of line call (per_particle_still_in_ghost_box) until
+// pantheonsim#691 was fixed. Any backend: cuda, rocm and cpu profiles; see
 // .github/workflows/ci.yml.
 
 #include "mkn/gpu.hpp"
