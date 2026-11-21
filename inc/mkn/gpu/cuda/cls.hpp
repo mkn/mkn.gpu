@@ -17,6 +17,7 @@
 #include "mkn/gpu/cuda/def.hpp"  // IWYU pragma: export
 
 #include <cuda_runtime.h>
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
@@ -42,22 +43,26 @@ struct Stream {
 struct StreamEvent {
   //
   StreamEvent(Stream& stream_) : stream{stream_} {}
-  StreamEvent(StreamEvent&& that) = default;
+  StreamEvent(StreamEvent&& that)
+      : stream{that.stream}, result{that.result}, _fn{std::move(that._fn)}, fin{that.fin.load()} {}
   StreamEvent(StreamEvent const&) = delete;
   StreamEvent& operator=(StreamEvent const&) = delete;
 
   auto& operator()(std::function<void()> fn = {}) {
-    fin = 0;
-    _fn = fn;
+    fin = false;
+    _fn = std::move(fn);
     MKN_GPU_ASSERT(cudaStreamAddCallback(stream(), StreamEvent::Callback, this, 0));
     return *this;
   }
 
+  // fn can hand the stream on, and the next step queue its own fn here (a ThreadedStreamLauncher
+  //  thread running a host step and the next device step): nothing of this is touched after fn
   static void Callback(cudaStream_t /*stream*/, cudaError_t /*status*/, void* ptr) {
     auto& self = *reinterpret_cast<StreamEvent*>(ptr);
-    self._fn();
-    self._fn = [] {};
-    self.fin = 1;
+    auto const fn = std::move(self._fn);
+    self._fn = {};
+    self.fin = true;
+    if (fn) fn();
   }
 
   bool finished() const { return fin; }
@@ -65,7 +70,7 @@ struct StreamEvent {
   Stream& stream;
   cudaError_t result;
   std::function<void()> _fn;
-  bool fin = 0;
+  std::atomic<bool> fin = false;  // set on the runtime's callback thread
 };
 
 // work queued while capturing is recorded rather than run, launch then replays all of it with
