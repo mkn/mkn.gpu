@@ -73,20 +73,8 @@ jobs:
 
       # -O optimises (unoptimised HIP is a known simulator weak spot), the arch is not set by
       #  the profile
-      # TEMPORARY: backtraces of a test still running after 5 minutes, then it is killed
       - name: Build and test
         run: |
-          (command -v gdb >/dev/null || sudo apt-get install -y -qq gdb >/dev/null) || true
-          (
-            sleep 300
-            for p in $(pgrep -f 'bin/rocm/test/'); do
-              echo "== hung test $p: $(tr '\0' ' ' < /proc/$p/cmdline)"
-              grep -E 'amdhip64|hsa-runtime|pantheon|vgpu' /proc/$p/maps | awk '{print $6}' | sort -u
-              tr '\0' '\n' < /proc/$p/environ | grep -E '^(LD_LIBRARY_PATH|LD_PRELOAD|VGPU|HIP|AMD)'
-              sudo gdb -batch -p $p -ex 'info threads' -ex 'thread apply all bt' 2>&1 | head -400
-              kill -9 $p
-            done
-          ) &
           KLOG=3 vgpu run ./mkn clean build test run -dtOp rocm -x res/mkn/hipcc \
             -a "--offload-arch=gfx942" -W 9
 
