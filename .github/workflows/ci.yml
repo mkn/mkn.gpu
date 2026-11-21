@@ -4,6 +4,7 @@ name: CI
 #  cpu: the cpu profile with gcc
 #  rocm: the rocm profile with hipcc on a simulated AMD MI300X
 #  cuda: the cuda profile with nvcc and with clang on a simulated NVIDIA H100
+#  cuda_particle_push: tst/any/particle_push.cpp with clang on a simulated RTX 5090
 # The GPU jobs run on PantheonSim (https://github.com/pantheongpu/pantheonsim), which has no
 #  real GPU behind it: they are functional only, timings mean nothing, and they complement
 #  real-GPU testing rather than replace it.
@@ -93,8 +94,8 @@ jobs:
 
       # the simulator needs a shared cudart
       - name: Set up the simulated GPU and CUDA
-        # pantheonsim main: the cudaFuncGetAttributes thread limit fix is not in a release yet
-        uses: pantheongpu/pantheonsim@1dc4331175956285e3da895444dd0dadccb21b08
+        # pantheonsim main (rolling): the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@main
         with:
           gpu: nvidia/h100
           cuda-toolkit: "12.6"
@@ -125,3 +126,50 @@ jobs:
             -e 's/^property:$/property:\n  mkn.env.automatic: false/' \
             res/mkn/clang_cuda.yaml > res/mkn/clang_cuda_ci.yaml
           KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda -x res/mkn/clang_cuda_ci -W 9
+
+  # tst/any/particle_push.cpp alone (cuda_particle_push profile) on a simulated RTX 5090
+  #  (sm_120, as res/mkn/clang_cuda.yaml). Simulators before pantheonsim#691's fix lost about
+  #  a third of the moves the device registers.
+  cuda_particle_push:
+    name: cuda particle push (CUDA 13.0, clang 22, simulated RTX 5090)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      # clang 22 (apt.llvm.org): Ubuntu 24.04's clang 18 cannot compile CUDA 13's headers
+      - name: clang 22
+        run: |
+          $CURL_GET -o llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh 22
+          sudo ln -sf /usr/bin/clang++-22 /usr/local/bin/clang++
+          clang++ --version
+
+      - name: Set up the simulated GPU and CUDA
+        id: sim
+        # pantheonsim main (rolling): the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@main
+        with:
+          gpu: nvidia/rtx5090
+          cuda-toolkit: "13.0"
+          rocm: none
+
+      - name: Get mkn
+        run: |
+          $CURL_GET -o mkn ${PATH_GET}/mkn_nix
+          chmod +x mkn
+
+      # mkn puts the settings' library path first on LD_LIBRARY_PATH for test runs: the
+      #  simulator's cudart, not the toolkit's
+      - name: mkn settings for the simulator
+        run: |
+          sed "s|^path: .*|path: ${{ steps.sim.outputs.shim-dir }}|" res/mkn/clang_cuda.yaml \
+            > res/mkn/clang_cuda_sim.yaml
+          grep -n "^path\|^inc\|sm.arch" res/mkn/clang_cuda_sim.yaml
+
+      - name: Build and test
+        run: |
+          KLOG=3 vgpu run ./mkn clean build test run -dtOp cuda_particle_push \
+            -x res/mkn/clang_cuda_sim -W 9
