@@ -94,8 +94,8 @@ jobs:
 
       # the simulator needs a shared cudart
       - name: Set up the simulated GPU and CUDA
-        # pantheonsim main: the noinline function fix (pantheonsim#691) is not in a release yet
-        uses: pantheongpu/pantheonsim@88a6b213c06312d331cf82bb7d1bf914efe417c3
+        # pantheonsim main (rolling): the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@main
         with:
           gpu: nvidia/h100
           cuda-toolkit: "12.6"
@@ -149,8 +149,8 @@ jobs:
 
       - name: Set up the simulated GPU and CUDA
         id: sim
-        # pantheonsim main: the noinline function fix (pantheonsim#691) is not in a release yet
-        uses: pantheongpu/pantheonsim@88a6b213c06312d331cf82bb7d1bf914efe417c3
+        # pantheonsim main (rolling): the noinline function fix (pantheonsim#691) is not in a release yet
+        uses: pantheongpu/pantheonsim@main
         with:
           gpu: nvidia/rtx5090
           cuda-toolkit: "13.0"
