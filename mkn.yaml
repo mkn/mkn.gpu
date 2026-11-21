@@ -14,6 +14,15 @@ profile:
   test: tst/any/(\w).cpp
         tst/hip/(\w).cpp
 
+# AMD APUs (e.g. gfx1036): consecutive kernels on a stream can miss each other's writes, tests run
+#  with HIP's kernel serialization
+- name: rocm_apu
+  parent: headers
+  arg: -DMKN_GPU_ROCM=1
+  env: AMD_SERIALIZE_KERNEL=3
+  test: tst/any/(\w).cpp
+        tst/hip/(\w).cpp
+
 - name: cuda
   parent: headers
   arg: -DMKN_GPU_CUDA=1
