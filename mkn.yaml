@@ -5,6 +5,7 @@ parent: headers
 property:
   # dependency versions: master (HEAD), not the default branch's rolling release (mkn.kul's: latest)
   mkn.kul.version: master
+  cpp.iwyu.version: master
 
 profile:
 - name: headers
@@ -59,6 +60,7 @@ profile:
   parent: cpu
   mod:
   - name: cpp.iwyu
+    version: ${cpp.iwyu.version}
     compile:
       paths: inc tst
       # any/inc: fragments included inside namespaces
@@ -73,6 +75,7 @@ profile:
   parent: rocm
   mod:
   - name: cpp.iwyu
+    version: ${cpp.iwyu.version}
     compile:
       paths: inc tst
       ignore: any/inc gpu/cpu gpu/cuda tst/cpu tst/cuda
@@ -85,6 +88,7 @@ profile:
   parent: cuda
   mod:
   - name: cpp.iwyu
+    version: ${cpp.iwyu.version}
     compile:
       paths: inc tst
       ignore: any/inc gpu/cpu gpu/rocm tst/cpu tst/hip
@@ -96,4 +100,4 @@ profile:
 
 - name: format
   mod: |
-    clang.format{init{style: file, paths: inc test}}
+    clang.format#master{init{style: file, paths: inc test}}
