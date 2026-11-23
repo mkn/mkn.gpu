@@ -1,16 +1,9 @@
 #ifndef MKN_GPU_DEF_HPP
 #define MKN_GPU_DEF_HPP
 
-#include <type_traits>
+#include "mkn/kul/lang/cpp/compiler/def/inline.hpp"  // IWYU pragma: export
 
-// a kernel's functor call always inlined (clang, CUDA and HIP): out of line, the call takes the
-//  address of the by value kernel parameter, which then is copied whole into each thread's
-//  local memory
-#if defined(__clang__)
-#define MKN_GPU_INLINE_CALL [[clang::always_inline]]
-#else
-#define MKN_GPU_INLINE_CALL
-#endif
+#include <type_traits>
 
 #if MKN_GPU_ROCM and MKN_GPU_CUDA
 #error  // not possible
