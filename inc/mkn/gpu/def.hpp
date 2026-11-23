@@ -3,6 +3,15 @@
 
 #include <type_traits>
 
+// a kernel's functor call always inlined (clang, CUDA and HIP): out of line, the call takes the
+//  address of the by value kernel parameter, which then is copied whole into each thread's
+//  local memory
+#if defined(__clang__)
+#define MKN_GPU_INLINE_CALL [[clang::always_inline]]
+#else
+#define MKN_GPU_INLINE_CALL
+#endif
+
 #if MKN_GPU_ROCM and MKN_GPU_CUDA
 #error  // not possible
 #endif
