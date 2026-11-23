@@ -33,14 +33,14 @@ namespace MKN_GPU_NS {
 
 template <typename F, typename... Args>
 __global__ static void global_d_kernel(F f, Args... args) {
-  f(args...);
+  MKN_KUL_INLINE_CALL f(args...);
 }
 
 //
 
 template <typename F, typename... Args>
 __global__ static void global_gd_kernel(F f, std::size_t s, Args... args) {
-  if (auto i = mkn::gpu::cuda::idx(); i < s) f(args...);
+  if (auto i = mkn::gpu::cuda::idx(); i < s) MKN_KUL_INLINE_CALL f(args...);
 }
 
 }  // namespace MKN_GPU_NS

@@ -2,11 +2,14 @@
 
 name: mkn.gpu
 parent: headers
+property:
+  # dependency versions: master (HEAD), not the default branch's rolling release (mkn.kul's: latest)
+  mkn.kul.version: master
 
 profile:
 - name: headers
   inc: inc
-  dep: mkn.kul
+  dep: mkn.kul#${mkn.kul.version}
 
 - name: rocm
   parent: headers

@@ -1,6 +1,8 @@
 #ifndef MKN_GPU_DEF_HPP
 #define MKN_GPU_DEF_HPP
 
+#include "mkn/kul/lang/cpp/compiler/def/inline.hpp"  // IWYU pragma: export
+
 #include <type_traits>
 
 #if MKN_GPU_ROCM and MKN_GPU_CUDA
