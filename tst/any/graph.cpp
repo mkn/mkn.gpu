@@ -8,9 +8,13 @@
 #include "mkn/gpu/trace.hpp"
 #include "mkn/gpu/graph.hpp"
 #include "mkn/gpu/stream.hpp"
+#include "mkn/kul/test.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <stdexcept>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 
@@ -26,42 +30,42 @@ void kernels(Stream& stream, float* const p) {
     DLauncher{NUM}.stream(stream, [=] __device__() { p[idx()] += 1; });
 }
 
-std::uint32_t check(ManagedVector<float> const& vec, float const expected) {
+// every value is expected, the first one not printed
+bool check(ManagedVector<float> const& vec, float const expected) {
   for (auto const& e : vec)
     if (e != expected) {
       KOUT(NON) << "expected " << expected << " got " << e;
-      return 1;
+      return false;
     }
-  return 0;
+  return true;
 }
 
 // capture records without running, each replay runs every kernel once
-std::uint32_t test_capture() {
+void test_capture() {
   Stream stream;
   ManagedVector<float> vec(NUM, 0);
   auto* const p = vec.data();
 
   kernels(stream, p);  // first launches outside the capture, kernel attributes are queried once
   stream.sync();
-  if (check(vec, K)) return 1;
+  MKN_KUL_TEST_CHECK(check(vec, K));
 
   Graph graph;
   graph.capture(stream, [&] { kernels(stream, p); });
   stream.sync();
-  if (check(vec, K)) return 1;  // nothing ran
-  if (!CompileFlags::withCPU && graph.nodes() != K) {
-    KOUT(NON) << "graph nodes " << graph.nodes() << " != " << K;
-    return 1;
-  }
+  MKN_KUL_TEST_CHECK(check(vec, K), "nothing ran in the capture");
+  if constexpr (!CompileFlags::withCPU)
+    if (!MKN_KUL_TEST_CHECK(graph.nodes() == K))
+      KOUT(NON) << "graph nodes " << graph.nodes() << " != " << K;
 
   for (std::size_t i = 0; i < 3; ++i) graph.launch(stream);
   stream.sync();
-  return check(vec, K * 4);
+  MKN_KUL_TEST_CHECK(check(vec, K * 4), "three replays ran");
 }
 
 // a throw while capturing ends the capture, the streams can be used normally afterwards
-std::uint32_t test_capture_throws() {
-  if constexpr (CompileFlags::withCPU) return 0;  // capture only stores fn on CPU, nothing runs
+void test_capture_throws() {
+  if constexpr (CompileFlags::withCPU) return;  // capture only stores fn on CPU, nothing runs
   std::vector<Stream> streams(2);
   ManagedVector<float> vec(NUM, 0);
   auto* const p = vec.data();
@@ -75,22 +79,24 @@ std::uint32_t test_capture_throws() {
   };
 
   Graph graph;
-  if (!throws(graph, streams[0], [&] {
-        kernels(streams[0], p);
-        throw std::runtime_error{"single"};
-      }))
-    return 1;
-  if (!throws(graph, streams, [&] {
-        kernels(streams[1], p);
-        throw std::runtime_error{"multi"};
-      }))
-    return 1;
+  MKN_KUL_TEST_CHECK(throws(graph, streams[0],
+                            [&] {
+                              kernels(streams[0], p);
+                              throw std::runtime_error{"single"};
+                            }),
+                     "a throw capturing one stream");
+  MKN_KUL_TEST_CHECK(throws(graph, streams,
+                            [&] {
+                              kernels(streams[1], p);
+                              throw std::runtime_error{"multi"};
+                            }),
+                     "a throw capturing several streams");
 
   for (auto& stream : streams) {  // a stream left capturing fails here
     kernels(stream, p);
     stream.sync();
   }
-  return check(vec, K * 2);  // nothing captured ran
+  MKN_KUL_TEST_CHECK(check(vec, K * 2), "nothing captured ran");
 }
 
 template <typename F>
@@ -110,7 +116,7 @@ double millis_total(F&& f) {
       .count();
 }
 
-std::uint32_t test_overhead() {
+void test_overhead() {
   Stream stream;
   ManagedVector<float> vec(NUM, 0);
   auto* const p = vec.data();
@@ -140,7 +146,7 @@ std::uint32_t test_overhead() {
   }
   KOUT(NON) << K << " kernels per iteration, direct " << direct << " us, graph " << graphed
             << " us";
-  return check(vec, K * (2 * ITERS + 2));
+  MKN_KUL_TEST_CHECK(check(vec, K * (2 * ITERS + 2)));
 }
 
 static constexpr std::size_t C = 4;       // data items, one stream each
@@ -162,19 +168,17 @@ void add_steps(Launcher& launcher, Data& data) {
     launcher.dev([=] __device__(auto const i) { views[i][idx()] += 1; });
 }
 
-std::uint32_t check(Data const& data, float const expected) {
-  std::uint32_t errors = 0;
-  for (auto const& vec : data.vecs) errors += check(vec, expected);
-  return errors;
+bool check(Data const& data, float const expected) {
+  return std::ranges::all_of(data.vecs, [&](auto const& vec) { return check(vec, expected); });
 }
 
 // device steps around host steps, replayed: host steps see the device steps before them
-std::uint32_t test_graph_launcher() {
+void test_graph_launcher() {
   // the host step reads managed memory while other items' kernels can run, which is only
   //  allowed with concurrent managed access, see doc/launchers.md
   if (!getConcurrentManagedAccess()) {
     KOUT(NON) << "skipped test_graph_launcher: no concurrent managed access";
-    return 0;
+    return;
   }
   Data data;
   auto views = data.datas.data();
@@ -186,20 +190,17 @@ std::uint32_t test_graph_launcher() {
         .dev([=] __device__(auto const i) { views[i][idx()] += 2; });
     for (std::size_t r = 0; r < 3; ++r) launcher();
     launcher.sync();
-    if (!CompileFlags::withCPU && launcher.graph.nodes() < C * 3) {
-      KOUT(NON) << "graph nodes " << launcher.graph.nodes();
-      return 1;
-    }
+    if constexpr (!CompileFlags::withCPU)
+      if (!MKN_KUL_TEST_CHECK(launcher.graph.nodes() >= C * 3))
+        KOUT(NON) << "graph nodes " << launcher.graph.nodes();
   }
-  for (auto const& s : seen)
-    if (s != 7) {  // third run: 3 + 3 + 1
-      KOUT(NON) << "host step saw " << s;
-      return 1;
-    }
-  return check(data, 9);
+  // third run: 3 + 3 + 1
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(seen, [](auto const s) { return s == 7; }),
+                     "each host step saw 7");
+  MKN_KUL_TEST_CHECK(check(data, 9));
 }
 
-std::uint32_t test_launchers() {
+void test_launchers() {
   double stream = 0, threaded = 0, graphed = 0;
   {
     Data data;
@@ -211,7 +212,7 @@ std::uint32_t test_launchers() {
         launcher();
       }
     });
-    if (check(data, STEPS * RUNS)) return 1;
+    MKN_KUL_TEST_CHECK(check(data, STEPS * RUNS));
   }
   {
     Data data;
@@ -223,7 +224,7 @@ std::uint32_t test_launchers() {
         launcher();
       }
     });
-    if (check(data, STEPS * RUNS)) return 1;
+    MKN_KUL_TEST_CHECK(check(data, STEPS * RUNS));
   }
   {
     Data data;
@@ -238,16 +239,18 @@ std::uint32_t test_launchers() {
         launcher.sync();
       }
     });
-    if (check(data, STEPS * RUNS)) return 1;
+    MKN_KUL_TEST_CHECK(check(data, STEPS * RUNS));
   }
   KOUT(NON) << C << " items x " << STEPS << " device steps, ms per run: StreamLauncher "
             << stream / RUNS << ", ThreadedStreamLauncher(0) " << threaded / RUNS
             << ", GraphLauncher " << graphed / (RUNS - 1);
-  return 0;
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test_capture() + test_capture_throws() + test_overhead() + test_graph_launcher() +
-         test_launchers();
+  test_capture();
+  test_capture_throws();
+  test_overhead();
+  test_graph_launcher();
+  test_launchers();
 }

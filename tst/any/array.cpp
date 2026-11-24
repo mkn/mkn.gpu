@@ -1,8 +1,13 @@
 
 #include "mkn/gpu.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <cstdint>
+#include <algorithm>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 static constexpr uint32_t WIDTH = 1024, HEIGHT = 1024;
 static constexpr uint32_t NUM = WIDTH * HEIGHT;
@@ -15,7 +20,7 @@ __global__ void vectoradd(T* a, T const* b, T const* c) {
 }
 
 template <typename Float>
-uint32_t test_1() {
+void test_1() {
   mkn::gpu::HostArray<Float, NUM> b, c;
   for (uint32_t i = 0; i < NUM; ++i) b[i] = i;
   for (uint32_t i = 0; i < NUM; ++i) c[i] = i * 100.0f;
@@ -25,10 +30,9 @@ uint32_t test_1() {
                                                                                devA, devB, devC);
 
   auto a = devA();
-  for (uint32_t i = 0; i < NUM; ++i)
-    if (a[i] != b[i] + c[i]) return 1;
-
-  return 0;
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(std::views::iota(0u, NUM),
+                                         [&](auto const i) { return a[i] == b[i] + c[i]; }),
+                     "a[i] == b[i] + c[i]");
 }
 
 template <typename T>
@@ -38,7 +42,7 @@ __global__ void vectorinc(T* a) {
 }
 
 template <typename Float>
-uint32_t test_2() {
+void test_2() {
   mkn::gpu::HostArray<Float, NUM> host;
   for (uint32_t i = 0; i < NUM; ++i) host[i] = i;
 
@@ -47,14 +51,15 @@ uint32_t test_2() {
                                                                                dev);
 
   auto a = dev();
-  for (uint32_t i = 0; i < NUM; ++i)
-    if (a[i] != host[i] + 1) return 1;
-
-  return 0;
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(std::views::iota(0u, NUM),
+                                         [&](auto const i) { return a[i] == host[i] + 1; }),
+                     "a[i] == host[i] + 1");
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test_1<float>() + test_1<double>() +  //
-         test_2<float>() + test_2<double>();
+  test_1<float>();
+  test_1<double>();
+  test_2<float>();
+  test_2<double>();
 }

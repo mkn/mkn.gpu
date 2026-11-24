@@ -3,6 +3,7 @@
 #include "mkn/gpu/asio.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/span.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -10,6 +11,8 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+
+MKN_KUL_TEST_DECLARE();
 
 static constexpr std::uint32_t BATCHES = 2;
 static constexpr std::uint32_t NUM = 1024 * 1024 * BATCHES;
@@ -20,7 +23,7 @@ struct A {
   std::uint32_t i0;
 };
 
-std::uint32_t test_single() {
+void test_single() {
   mkn::gpu::HostArray<A, NUM> a;
   for (std::uint32_t i = 0; i < NUM; ++i) a[i].i0 = i;
 
@@ -33,16 +36,17 @@ std::uint32_t test_single() {
       },
       a);
 
-  std::size_t checked = 0;
+  std::size_t checked = 0, failed = 0;
   for (std::size_t i = 0; i < BATCHES; ++i) {
     auto offset = i * PER_BATCH;
     auto copy_back = batch->get(i);
     for (std::uint32_t j = 0; j < PER_BATCH; ++j) {
-      if (copy_back[j].i0 != a[j + offset].i0 + 1) return 1;
+      failed += !(copy_back[j].i0 == a[j + offset].i0 + 1);
       ++checked;
     }
   }
-  return checked != NUM;
+  MKN_KUL_TEST_CHECK(failed == 0, "copy_back[j].i0 == a[j + offset].i0 + 1");
+  MKN_KUL_TEST_CHECK(checked == NUM, "every element checked");
 }
 
 struct B {
@@ -50,7 +54,7 @@ struct B {
 };
 
 template <typename As>
-std::uint32_t _test_multiple(As&& a) {
+void _test_multiple(As&& a) {
   for (std::uint32_t i = 0; i < NUM; ++i) a[i].i0 = i;
   std::vector<B> b(NUM / 1000);
   for (std::uint32_t i = 0; i < NUM / 1000; ++i) b[i].f0 = i + 1;
@@ -58,22 +62,24 @@ std::uint32_t _test_multiple(As&& a) {
   auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
       [] __device__(auto i, A* a, B* b) { a[i].i0 = a[i].i0 + b[i % 1000].f0; }, a, b);
 
-  std::size_t checked = 0;
+  std::size_t checked = 0, failed = 0;
   for (std::size_t i = 0; i < BATCHES; ++i) {
     auto offset = i * PER_BATCH;
     auto copy_back = batch->get(i);
     for (std::uint32_t j = 0; j < PER_BATCH; ++j) {
-      if (copy_back[j].i0 != a[j + offset].i0 + b[(j + offset) % 1000].f0) return 1;
+      failed += !(copy_back[j].i0 == a[j + offset].i0 + b[(j + offset) % 1000].f0);
       ++checked;
     }
   }
-  return checked != NUM;
+  MKN_KUL_TEST_CHECK(failed == 0,
+                     "copy_back[j].i0 == a[j + offset].i0 + b[(j + offset) % 1000].f0");
+  MKN_KUL_TEST_CHECK(checked == NUM, "every element checked");
 }
 
-std::uint32_t test_multiple() { return _test_multiple(std::vector<A>(NUM)); }
-std::uint32_t test_multiple_pinned() { return _test_multiple(mkn::gpu::HostArray<A, NUM>{}); }
+void test_multiple() { _test_multiple(std::vector<A>(NUM)); }
+void test_multiple_pinned() { _test_multiple(mkn::gpu::HostArray<A, NUM>{}); }
 
-std::uint32_t test_lambda_copy_capture_views() {
+void test_lambda_copy_capture_views() {
   std::vector<A, mkn::gpu::ManagedAllocator<A>> a(NUM);
   for (std::uint32_t i = 0; i < NUM; ++i) a[i].i0 = i;
   std::vector<B, mkn::gpu::ManagedAllocator<B>> bv(NUM / 1000);
@@ -83,24 +89,24 @@ std::uint32_t test_lambda_copy_capture_views() {
   auto batch = mkn::gpu::asio::Launcher{TP_BLOCK, BATCHES}(
       [=] __device__(auto i, A* a) { a[i].i0 = a[i].i0 + b[i % 1000].f0; }, a);
 
-  std::size_t checked = 0;
+  std::size_t checked = 0, failed = 0;
   for (std::size_t i = 0; i < BATCHES; ++i) {
     auto offset = i * PER_BATCH;
     auto copy_back = batch->get(i);
     for (std::uint32_t j = 0; j < PER_BATCH; ++j) {
-      if (copy_back[j].i0 != a[j + offset].i0 + b[(j + offset) % 1000].f0) return 1;
+      failed += !(copy_back[j].i0 == a[j + offset].i0 + b[(j + offset) % 1000].f0);
       ++checked;
     }
   }
-
-  return checked != NUM;
+  MKN_KUL_TEST_CHECK(failed == 0,
+                     "copy_back[j].i0 == a[j + offset].i0 + b[(j + offset) % 1000].f0");
+  MKN_KUL_TEST_CHECK(checked == NUM, "every element checked");
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-
-  return test_single() +           //
-         test_multiple() +         //
-         test_multiple_pinned() +  //
-         test_lambda_copy_capture_views();
+  test_single();
+  test_multiple();
+  test_multiple_pinned();
+  test_lambda_copy_capture_views();
 }

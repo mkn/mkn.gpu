@@ -1,10 +1,12 @@
 // managed memory used on the device, then the host, then the device again, per stream
 //  once migrated by page faults on access, once by prefetching ahead of each use
-//  nsys profile --trace=cuda,nvtx --cuda-um-gpu-page-faults=true --cuda-um-cpu-page-faults=true <test binary>
+//  nsys profile --trace=cuda,nvtx --cuda-um-gpu-page-faults=true --cuda-um-cpu-page-faults=true
+//  <test binary>
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/trace.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <chrono>
 #include <algorithm>
@@ -14,6 +16,9 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 
@@ -64,11 +69,13 @@ double run(Data& data, bool const prefetched) {
       .count();
 }
 
-std::uint32_t check(Data const& data) {
-  for (auto const& vec : data.vecs)
-    for (auto const& e : vec)
-      if (e != 5) return 1;
-  return 0;
+void check(Data const& data) {
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(data.vecs,
+                                         [](auto const& vec) {
+                                           return std::ranges::all_of(
+                                               vec, [](auto const& e) { return e == 5; });
+                                         }),
+                     "every value == 5");
 }
 
 int main() {
@@ -77,10 +84,9 @@ int main() {
   run(data, true);  // warm up, context and allocations
 
   auto const faulted = run(data, false);
-  std::uint32_t ret = check(data);
+  check(data);  // the values after the run without prefetching
   auto const prefetched = run(data, true);
-  ret += check(data);
+  check(data);  // the values after the prefetched run
 
   KOUT(NON) << "faulted " << faulted << " ms, prefetched " << prefetched << " ms";
-  return ret;
 }

@@ -2,17 +2,21 @@
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/def.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <stdexcept>
 #include <cstddef>
+#include <initializer_list>
 #include <vector>
+
+MKN_KUL_TEST_DECLARE();
 
 template <typename T>
 using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;
 
 bool constexpr set_heap_limit = true;  // see if you need it by setting false after reboot
 
-bool test_allocate_percentage(double const percent) {
+void test_allocate_percentage(double const percent) {
   auto const devProp = mkn::gpu::getDeviceProperties();
 
   auto const mem = devProp.totalGlobalMem;
@@ -23,9 +27,9 @@ bool test_allocate_percentage(double const percent) {
 
   auto const heapLim = mkn::gpu::getLimitMallocHeapSize();
   KLOG(DBG) << heapLim;
-  if (set_heap_limit and limit > heapLim) {
+  if (set_heap_limit and !MKN_KUL_TEST_CHECK(limit <= heapLim, "the heap limit was set")) {
     KOUT(NON) << "Cannot set heap limit! " << limit << " " << heapLim;
-    return 1;
+    return;
   }
 
   if (limit < sizeof(double)) throw std::runtime_error("limit < sizeof(double)");
@@ -36,24 +40,16 @@ bool test_allocate_percentage(double const percent) {
 
   {
     ManagedVector<double> vec(size, 2);
-    if (vec.data()[vec.size() - 1] != 2) return 1;
+    MKN_KUL_TEST_CHECK(vec.data()[vec.size() - 1] == 2);
   }
 
   KOUT(NON) << "Can allocate " << std::size_t(percent * 100)
             << "% of total mem: " << std::size_t(mem / 1e6) << "mb";
-
-  return 0;
 }
 
 int main() {
   KOUT(NON) << __FILE__;
   mkn::gpu::prinfo();
-  if constexpr (mkn::gpu::CompileFlags::withCPU)
-    return 0;  // NOT RELEVANT
-  else
-    return test_allocate_percentage(.1) +  //
-           test_allocate_percentage(.2) +  //
-           test_allocate_percentage(.3) +  //
-           test_allocate_percentage(.4) +  //
-           test_allocate_percentage(.5);
+  if constexpr (!mkn::gpu::CompileFlags::withCPU)  // NOT RELEVANT on the CPU
+    for (double const percent : {.1, .2, .3, .4, .5}) test_allocate_percentage(percent);
 }

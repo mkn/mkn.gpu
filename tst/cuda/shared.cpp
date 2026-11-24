@@ -6,11 +6,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <algorithm>
+#include <ranges>
 
 // MKN_GPU_FN_PER_NS: the backend header is used directly, not mkn/gpu.hpp
 // IWYU pragma: no_include "mkn/gpu.hpp"
 #include "mkn/gpu/cuda.hpp"  // IWYU pragma: keep
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu::cuda;
 
@@ -40,7 +45,7 @@ __global__ void dynamic_only(float* out, std::uint32_t const dyn_floats) {
 }
 
 template <typename K>
-std::uint32_t run(K kernel, std::size_t const dyn_bytes, float const expected) {
+void run(K kernel, std::size_t const dyn_bytes, float const expected) {
   auto const f = reinterpret_cast<void const*>(kernel);
   auto const before = getKernelMaxDynamicSharedMemory(f);
 
@@ -51,16 +56,16 @@ std::uint32_t run(K kernel, std::size_t const dyn_bytes, float const expected) {
 
   KOUT(NON) << "dynamic " << dyn_bytes << " allowed before " << before << " after "
             << getKernelMaxDynamicSharedMemory(f);
-  if (dyn_bytes <= before) return 1;  // the case under test needs the opt-in
-  for (auto const& e : out())
-    if (e != expected) return 1;
-  return 0;
+  // the case under test needs the opt-in
+  MKN_KUL_TEST_CHECK(dyn_bytes > before);
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(out(), [&](auto const& e) { return e == expected; }),
+                     "e == expected");
 }
 
 int main() {
   KOUT(NON) << __FILE__;
   std::size_t constexpr KB = 1024;
   // 16KB static + 40KB dynamic, over the 48KB default although 40KB alone is not
-  return run(with_static, 40 * KB, STATIC / THREADS * 1 + 40 * KB / 4 / THREADS * 2)  //
-         + run(dynamic_only, 64 * KB, 64 * KB / 4 / THREADS * 2);
+  run(with_static, 40 * KB, STATIC / THREADS * 1 + 40 * KB / 4 / THREADS * 2);
+  run(dynamic_only, 64 * KB, 64 * KB / 4 / THREADS * 2);
 }

@@ -4,12 +4,17 @@
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/stream.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <ratio>
 #include <vector>
+#include <algorithm>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 
@@ -40,11 +45,13 @@ void add_steps(Launcher& launcher, Data& data) {
   }
 }
 
-std::uint32_t check(Data const& data) {
-  for (auto const& vec : data.vecs)
-    for (auto const& e : vec)
-      if (e != STEPS) return 1;
-  return 0;
+void check(Data const& data) {
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(data.vecs,
+                                         [](auto const& vec) {
+                                           return std::ranges::all_of(
+                                               vec, [](auto const& e) { return e == STEPS; });
+                                         }),
+                     "every value == STEPS");
 }
 
 template <typename F>
@@ -56,7 +63,7 @@ double millis(F&& f) {
 }
 
 template <bool with_host>
-std::uint32_t test_stream_launcher() {
+void test_stream_launcher() {
   Data data;
   auto const ms = millis([&] {
     StreamLauncher launcher{data.vecs};
@@ -64,11 +71,11 @@ std::uint32_t test_stream_launcher() {
     launcher();
   });
   KOUT(NON) << "StreamLauncher host=" << with_host << " " << ms << " ms";
-  return check(data);
+  check(data);
 }
 
 template <bool with_host>
-std::uint32_t test_threaded_stream_launcher(std::size_t const nthreads) {
+void test_threaded_stream_launcher(std::size_t const nthreads) {
   Data data;
   auto const ms = millis([&] {
     ThreadedStreamLauncher launcher{data.vecs, nthreads};
@@ -77,13 +84,16 @@ std::uint32_t test_threaded_stream_launcher(std::size_t const nthreads) {
   });
   KOUT(NON) << "ThreadedStreamLauncher(" << nthreads << ") host=" << with_host << " " << ms
             << " ms";
-  return check(data);
+  check(data);
 }
 
 int main() {
   KOUT(NON) << __FILE__;
   test_threaded_stream_launcher<false>(0);  // warm up
-  return test_stream_launcher<true>() + test_stream_launcher<false>() +
-         test_threaded_stream_launcher<true>(0) + test_threaded_stream_launcher<true>(2) +
-         test_threaded_stream_launcher<false>(0) + test_threaded_stream_launcher<false>(2);
+  test_stream_launcher<true>();
+  test_stream_launcher<false>();
+  test_threaded_stream_launcher<true>(0);
+  test_threaded_stream_launcher<true>(2);
+  test_threaded_stream_launcher<false>(0);
+  test_threaded_stream_launcher<false>(2);
 }
