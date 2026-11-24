@@ -64,31 +64,7 @@ void fill(Container& c, T const val) {
   fill(c, c.size(), val);
 }
 
-// https://rocm-developer-tools.github.io/HIP/group__Device.html
-void inline prinfo(size_t dev = 0) {
-  hipDeviceProp_t devProp;
-  MKN_GPU_ASSERT(hipGetDeviceProperties(&devProp, dev));
-  KOUT(NON) << " System version  " << devProp.major << "." << devProp.minor;
-  KOUT(NON) << " agent name      " << devProp.name;
-  KOUT(NON) << " cores           " << devProp.multiProcessorCount;
-  KOUT(NON) << " threadsPCore    " << devProp.maxThreadsPerMultiProcessor;
-  KOUT(NON) << " TotalMem        " << (devProp.totalGlobalMem / 1000000) << " MB";
-  KOUT(NON) << " BlockMem        " << (devProp.sharedMemPerBlock / 1000) << " KB";
-  KOUT(NON) << " device warpSize " << devProp.warpSize;
-  KOUT(NON) << " threadsPBlock   " << devProp.maxThreadsPerBlock;
-
-#ifdef MKN_GPU_WARP_SIZE
-  KOUT(NON) << " warpSize used   " << MKN_GPU_WARP_SIZE;
-#else
-  KOUT(NON) << " warpSize used   " << warp_size;
-  if (warp_size != static_cast<std::uint32_t>(devProp.warpSize)) {
-    KOUT(NON) << " warpSize MISMATCH!!!  " << warp_size << " vs " << devProp.warpSize;
-    KOUT(NON) << " SEE mkn.gpu README for -DMKN_GPU_WARP_SIZE=###";
-  }
-#endif
-  KOUT(NON) << " version:        " << HIP_VERSION_MAJOR << "." << HIP_VERSION_MINOR << "."
-            << HIP_VERSION_PATCH;
-}
+#include "mkn/gpu/any/inc/prinfo.ipp"  // IWYU pragma: export
 
 void inline print_gpu_mem_used() {
   double free_m = 0, total_m = 0, used_m = 0;

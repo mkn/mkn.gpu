@@ -6,6 +6,7 @@
 
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/assert.hpp"
+#include "mkn/gpu/def.hpp"
 
 #include <string>
 #include <cstddef>
@@ -86,25 +87,26 @@ namespace MKN_GPU_NS {
 
 #define MKN_GPU_ASSERT(x) (KASSERT((x)))
 
-struct DeviceProperties {
-  std::string major = "major";
-  std::string minor = "minor";
-  std::string name = "name";
-  std::size_t multiProcessorCount = 1;
-  std::size_t maxThreadsPerMultiProcessor = 0;
-  std::size_t totalGlobalMem = 0;
-  std::size_t sharedMemPerBlock = 0;
-  std::size_t warpSize = 1;
-  std::size_t maxThreadsPerBlock = 0;
-};
-
-auto inline getDeviceProperties(std::size_t /*dev*/ = 0) { return DeviceProperties{}; }
-
-std::uint32_t inline getWarpSize(size_t /*dev */ = 0) { return 1; }
-
-static std::uint32_t inline const warp_size = getWarpSize();
-
 std::size_t inline getMaxThreadsPerBlock(std::size_t const /*dev*/ = 0) { return 1024; }
+
+// the host, one pseudo device: launches run one element at a time
+DeviceProperties inline const& getDeviceProperties(std::size_t const /*dev*/ = 0) {
+  static DeviceProperties const props = [] {
+    DeviceProperties p;
+    p.name = "Pseudo GPU";
+    p.runtime = "cpu";
+    p.multiProcessorCount = 1;
+    p.maxThreadsPerBlock = getMaxThreadsPerBlock();
+    p.warpSize = 1;
+    return p;
+  }();
+  return props;
+}
+
+std::uint32_t inline getWarpSize(std::size_t const /*dev*/ = 0) { return 1; }
+
+std::uint32_t inline warp_size(std::size_t const /*dev*/) { return 1; }
+std::uint32_t inline warp_size() { return 1; }
 
 // launches run one element per block, see launch in cpu/cls.hpp
 std::size_t inline getKernelMaxThreadsPerBlock(void const* const /*f*/) { return 1; }

@@ -63,7 +63,7 @@ void fill_warp_size(T* const t, std::size_t const size, T const val) {
   std::fill(t, t + size, val);
 }
 
-void inline prinfo(std::size_t /*dev*/ = 0) { KOUT(NON) << "Pseudo GPU in use"; }
+#include "mkn/gpu/any/inc/prinfo.ipp"  // IWYU pragma: export
 
 }  // namespace MKN_GPU_NS
 

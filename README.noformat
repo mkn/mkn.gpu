@@ -33,11 +33,6 @@ Description     expose functions explicitly via
                    mkn::gpu::hip::*
                    mkn::gpu::cuda::*
 
-Key             MKN_GPU_WARP_SIZE
-Type            uint
-Default         use manufacturer provided (eg warpSize), usually 32
-Description     override use if defined
-
 Key             MKN_GPU_TRACE
 Type            bool
 Default         1 for CUDA when NVTX3 headers are available, else 0

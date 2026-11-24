@@ -4,14 +4,17 @@
 #ifndef MKN_GPU_CUDA_DEF_HPP
 #define MKN_GPU_CUDA_DEF_HPP
 
+#include "mkn/kul/fail.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/gpu/def.hpp"
 
 #include <cuda_runtime.h>
-#include <cstdio>
 #include <string>
 #include <cstdint>
-#include <cstdlib>
+#include <map>
+#include <source_location>
+#include <mutex>
+#include <utility>
 #include <vector>
 
 #if defined(MKN_GPU_FN_PER_NS) && MKN_GPU_FN_PER_NS
@@ -24,36 +27,67 @@ namespace MKN_GPU_NS {
 
 static_assert(CompileFlags::withCUDA);
 
-#define MKN_GPU_ASSERT(ans)               \
-  {                                       \
-    gpuAssert((ans), __FILE__, __LINE__); \
+// an API error is unrecoverable: mkn::kul::fail, where the macro is used
+#define MKN_GPU_ASSERT(ans) \
+  {                         \
+    gpuAssert((ans));       \
   }
-inline void gpuAssert(cudaError_t code, char const* file, int line, bool abort = true) {
-  if (code != cudaSuccess) {
-    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort) std::abort();
-  }
+inline void gpuAssert(cudaError_t const code,
+                      std::source_location const where = std::source_location::current()) {
+  if (code != cudaSuccess)
+    mkn::kul::fail(std::string{"GPUassert: "} + cudaGetErrorString(code), where);
 }
 
 std::string getErrorString(auto const code) { return cudaGetErrorString(code); }
 
-auto inline getDeviceProperties(size_t dev = 0) {
-  cudaDeviceProp devProp;
-  MKN_GPU_ASSERT(cudaGetDeviceProperties(&devProp, dev));
-  return devProp;
+namespace detail {
+__global__ static void warp_size_probe(std::uint32_t* const out) { *out = warpSize; }
+
+// the warpSize this build's kernels see on device dev
+std::uint32_t inline probe_warp_size(std::size_t const dev) {
+  int current = 0;
+  MKN_GPU_ASSERT(cudaGetDevice(&current));
+  MKN_GPU_ASSERT(cudaSetDevice(static_cast<int>(dev)));
+  std::uint32_t* d = nullptr;
+  MKN_GPU_ASSERT(cudaMalloc(reinterpret_cast<void**>(&d), sizeof(*d)));
+  warp_size_probe<<<1, 1>>>(d);
+  MKN_GPU_ASSERT(cudaGetLastError());
+  std::uint32_t w = 0;
+  MKN_GPU_ASSERT(cudaMemcpy(&w, d, sizeof(w), cudaMemcpyDeviceToHost));
+  MKN_GPU_ASSERT(cudaFree(d));
+  MKN_GPU_ASSERT(cudaSetDevice(current));
+  return w;
+}
+}  // namespace detail
+
+// device dev's properties, queried once per device. A device whose properties cannot be read,
+//  or that cannot run a kernel, is an invalid setup: mkn::kul::fail
+DeviceProperties inline const& getDeviceProperties(std::size_t const dev = 0) {
+  static std::mutex mutex;
+  static std::map<std::size_t, DeviceProperties> cache;
+  std::lock_guard<std::mutex> lock{mutex};
+  if (auto const it = cache.find(dev); it != cache.end()) return it->second;
+
+  cudaDeviceProp p;
+  MKN_GPU_ASSERT(cudaGetDeviceProperties(&p, static_cast<int>(dev)));
+  DeviceProperties props;
+  props.name = p.name;
+  props.runtime = "CUDA " + std::to_string(CUDART_VERSION);
+  props.major = static_cast<std::uint32_t>(p.major);
+  props.minor = static_cast<std::uint32_t>(p.minor);
+  props.multiProcessorCount = static_cast<std::size_t>(p.multiProcessorCount);
+  props.maxThreadsPerMultiProcessor = static_cast<std::size_t>(p.maxThreadsPerMultiProcessor);
+  props.maxThreadsPerBlock = static_cast<std::size_t>(p.maxThreadsPerBlock);
+  props.totalGlobalMem = p.totalGlobalMem;
+  props.sharedMemPerBlock = p.sharedMemPerBlock;
+  props.warpSize = detail::probe_warp_size(dev);
+  if (props.warpSize == 0) mkn::kul::fail("no warpSize from device " + std::to_string(dev));
+  return cache.emplace(dev, std::move(props)).first->second;
 }
 
-std::uint32_t inline getWarpSize(size_t dev = 0) {
-#ifdef MKN_GPU_WARP_SIZE
-  return MKN_GPU_WARP_SIZE;
-
-#else
+std::uint32_t inline getWarpSize(std::size_t const dev = 0) {
   return getDeviceProperties(dev).warpSize;
-
-#endif /*MKN_GPU_WARP_SIZE    */
 }
-
-static std::uint32_t inline const warp_size = getWarpSize();
 
 std::size_t inline getMaxThreadsPerBlock(std::size_t const dev = 0) {
   int threads = 0;
@@ -124,6 +158,17 @@ std::size_t inline getDevice() {
 }
 
 void inline setDevice(std::size_t const& dev) { MKN_GPU_ASSERT(cudaSetDevice(dev)); }
+
+// the warpSize kernels run at on device dev (see DeviceProperties), cached per thread and device
+std::uint32_t inline warp_size(std::size_t const dev) {
+  thread_local std::vector<std::uint32_t> cache;
+  if (cache.size() <= dev) cache.resize(dev + 1, 0);
+  if (cache[dev] == 0) cache[dev] = getWarpSize(dev);
+  return cache[dev];
+}
+
+// on the current device
+std::uint32_t inline warp_size() { return warp_size(getDevice()); }
 
 void inline sync() { MKN_GPU_ASSERT(cudaDeviceSynchronize()); }
 void inline sync(cudaStream_t stream) { MKN_GPU_ASSERT(cudaStreamSynchronize(stream)); }
