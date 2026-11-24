@@ -2,10 +2,15 @@
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/trace.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 
@@ -18,7 +23,7 @@ __global__ void kernel(float* data, std::size_t const size) {
   if (auto i = mkn::gpu::idx(); i < size) data[i] += 1;
 }
 
-std::uint32_t test_nested_ranges() {
+void test_nested_ranges() {
   ManagedVector<float> v(NUM, 0);
   {
     trace::Range outer{"outer"};
@@ -28,12 +33,10 @@ std::uint32_t test_nested_ranges() {
       GLauncher{NUM}(kernel, v.data(), NUM).sync();
     }
   }
-  for (auto const& e : v)
-    if (e != 3) return 1;
-  return 0;
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(v, [&](auto const& e) { return e == 3; }), "e == 3");
 }
 
 int main() {
   KOUT(NON) << __FILE__ << " trace enabled: " << trace::enabled;
-  return test_nested_ranges();
+  test_nested_ranges();
 }

@@ -2,10 +2,15 @@
 #include "mkn/kul/for.hpp"
 #include "mkn/kul/log.hpp"
 #include "mkn/kul/range.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <array>
 #include <cstdint>
 #include <vector>
+#include <algorithm>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 // mkn.kul's constexpr loop helpers called from device code
 static constexpr std::uint32_t NUM = 1024, TPB = 256;  // 1D grid
@@ -32,17 +37,18 @@ __global__ void kul_for(T* a) {
 }
 
 template <typename T>
-std::uint32_t test() {
+void test() {
   mkn::gpu::DeviceMem<T> devA(NUM);
   mkn::gpu::GLauncher{NUM, 1, TPB, 1}(kul_for<T>, devA);
   auto a = devA();
   // 3i + 3 from the fold, + 1 from for_N, + 6 from range(4)
-  for (std::uint32_t i = 0; i < NUM; i++)
-    if (a[i] != T(3 * i + 10)) return 1;
-  return 0;
+  MKN_KUL_TEST_CHECK(std::ranges::all_of(std::views::iota(0u, NUM),
+                                         [&](auto const i) { return a[i] == T(3 * i + 10); }),
+                     "a[i] == T(3 * i + 10)");
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test<float>() + test<double>();
+  test<float>();
+  test<double>();
 }

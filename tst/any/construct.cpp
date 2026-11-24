@@ -1,13 +1,15 @@
 
 #include "mkn/gpu.hpp"
-#include "mkn/kul/assert.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <vector>
+
+MKN_KUL_TEST_DECLARE();
 
 static constexpr uint32_t NUM = 5;
 
@@ -24,44 +26,45 @@ struct S {
   std::uint16_t s = 1;
 };
 
-std::uint32_t test_does_construct_on_resize() {
+void test_does_construct_on_resize() {
   KLOG(INF);
   alloced = 0;
   ManagedVector<S> mem{NUM};
   mem.resize(NUM + NUM);
-  return alloced != NUM + NUM;
+  MKN_KUL_TEST_CHECK(alloced == NUM + NUM, "resize constructs the new elements");
 }
 
-std::uint32_t test_does_not_construct_on_resize() {
+void test_does_not_construct_on_resize() {
   KLOG(INF);
   alloced = 0;
   ManagedMemory<S> mem{NUM};
-  mkn::kul::abort_if_not(mem.size() == 5 && "wrong size");
+  MKN_KUL_TEST_CHECK(mem.size() == 5);
   resize(mem, NUM + NUM);
-  mkn::kul::abort_if_not(mem.size() == 10 && "wrong size");
+  MKN_KUL_TEST_CHECK(mem.size() == 10);
 
   auto cap = mem.capacity();
 
   KLOG(INF) << mem.capacity();
   as_super(mem).emplace_back();  // does construct
   KLOG(INF) << mem.capacity();
-  mkn::kul::abort_if_not(mem.capacity() != cap && "capacity bad!");
-  mkn::kul::abort_if_not(mem[10].s == 1 && "bad construct!");
+  MKN_KUL_TEST_CHECK(mem.capacity() != cap);
+  MKN_KUL_TEST_CHECK(mem[10].s == 1, "emplace_back constructs");
 
   cap = mem.capacity();
 
   resize(mem, NUM * 5);
-  mkn::kul::abort_if_not(mem.size() == 25 && "wrong size");
-  mkn::kul::abort_if_not(mem.capacity() != cap && "capacity bad!");
-  mkn::kul::abort_if_not(mem[10].s == 1 && "bad copy!");
+  MKN_KUL_TEST_CHECK(mem.size() == 25);
+  MKN_KUL_TEST_CHECK(mem.capacity() != cap);
+  MKN_KUL_TEST_CHECK(mem[10].s == 1, "resize copies");
 
   KLOG(INF) << mem[10].s;
   KLOG(INF) << mem[11].s;
-  return alloced != 1 or mem[10].s != 1;
+  MKN_KUL_TEST_CHECK(alloced == 1, "only emplace_back constructed");
+  MKN_KUL_TEST_CHECK(mem[10].s == 1);
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-
-  return test_does_construct_on_resize() + test_does_not_construct_on_resize();
+  test_does_construct_on_resize();
+  test_does_not_construct_on_resize();
 }

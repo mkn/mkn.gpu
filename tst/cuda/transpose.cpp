@@ -16,6 +16,9 @@
 // IWYU pragma: no_include "mkn/gpu.hpp"
 #include "mkn/gpu/cuda.hpp"  // IWYU pragma: keep
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu::cuda;
 
@@ -52,15 +55,17 @@ __global__ void tiled(float* out, float const* in) { tiled_t<1>(out, in); }
 __global__ void tiled_conflicts(float* out, float const* in) { tiled_t<0>(out, in); }
 
 template <typename K>
-std::uint32_t run(K kernel, bool const transposed, std::vector<float> const& host,
-                  DeviceMem<float>& in, DeviceMem<float>& out) {
+void run(K kernel, bool const transposed, std::vector<float> const& host, DeviceMem<float>& in,
+         DeviceMem<float>& out) {
   out.fill_n(-1, out.size());  // host has no negatives, a write the kernel skips is caught
   GLauncher{dim3{N / TILE, N / TILE}, dim3{TILE, ROWS}}(kernel, out, in).sync();
   auto const res = out();
+  std::size_t failed = 0;
   for (std::size_t y = 0; y < N; y += 61)  // sampled, a full check is slow on the host
     for (std::size_t x = 0; x < N; x += 59)
-      if (res[y * N + x] != (transposed ? host[x * N + y] : host[y * N + x])) return 1;
-  return 0;
+      failed += res[y * N + x] != (transposed ? host[x * N + y] : host[y * N + x]);
+  MKN_KUL_TEST_CHECK(failed == 0,
+                     "res[y * N + x] == (transposed ? host[x * N + y] : host[y * N + x])");
 }
 
 int main() {
@@ -68,9 +73,8 @@ int main() {
   std::vector<float> host(std::size_t{N} * N);
   for (std::size_t i = 0; i < host.size(); ++i) host[i] = i;
   DeviceMem<float> in{host}, out(host.size());
-
-  return run(copy_kernel, false, host, in, out)  //
-         + run(naive, true, host, in, out)       //
-         + run(tiled, true, host, in, out)       //
-         + run(tiled_conflicts, true, host, in, out);
+  run(copy_kernel, false, host, in, out);
+  run(naive, true, host, in, out);
+  run(tiled, true, host, in, out);
+  run(tiled_conflicts, true, host, in, out);
 }

@@ -6,11 +6,16 @@
 #include "mkn/gpu.hpp"
 #include "mkn/kul/lang/cpp/compiler/def/unroll_loop.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
 #include <vector>
+#include <algorithm>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 
@@ -23,13 +28,14 @@ dim3 grid_for(std::size_t const size, std::size_t const bx) {
   return dim3(static_cast<std::uint32_t>(size / bx + (size % bx > 0)));
 }
 
-// 1 if any output differs, every input is the same so every output must be too, an element a
-//  launch did not cover (e.g. a grid rounded down) keeps its initial 0
+// every output the same in both and across them: every input is the same, so every output must be
+//  too, an element a launch did not cover (e.g. a grid rounded down) keeps its initial 0
 template <typename T>
-std::uint32_t mismatch(T const& a, T const& b) {
-  for (std::size_t i = 0; i < a.size(); ++i)
-    if (a[i] != b[i] || a[i] != a[0]) return 1;
-  return 0;
+void check_same(T const& a, T const& b) {
+  MKN_KUL_TEST_CHECK(
+      std::ranges::all_of(std::views::iota(std::size_t{0}, a.size()),
+                          [&](auto const i) { return a[i] == b[i] && a[i] == a[0]; }),
+      "a[i] == b[i] && a[i] == a[0]");
 }
 
 static constexpr std::uint32_t LIVE = 96;  // values held per thread, over 64 regs at 1024 threads
@@ -54,7 +60,7 @@ __global__ void heavy(float* out, float const* in, std::size_t const size,
   out[i] = sum;
 }
 
-std::uint32_t test_heavy() {
+void test_heavy() {
   ManagedVector<float> in(NUM, 0.5), out(NUM, 0), fixed_out(NUM, 0);
 
   static auto const bx = kernel_bx_threads<heavy>();
@@ -65,15 +71,14 @@ std::uint32_t test_heavy() {
   GLauncher{grid_for(NUM, bx), dim3(static_cast<std::uint32_t>(bx))}(heavy, fixed_out, in, NUM, 4u)
       .sync();
 
-  if (mismatch(out, fixed_out)) return 1;
+  check_same(out, fixed_out);
 
   KOUT(NON) << "heavy kernel max block " << bx << ", device max " << getMaxThreadsPerBlock()
             << ", launched with " << launcher.b.x;
-  if (launcher.b.x > bx) return 1;
-  return 0;
+  MKN_KUL_TEST_CHECK(launcher.b.x <= bx);
 }
 
-std::uint32_t test_device_fit() {
+void test_device_fit() {
   ManagedVector<float> in(NUM, 0.5), out(NUM, 0);
 
   auto heavy = [=] __device__(float* out, float const* in, std::size_t const size,
@@ -106,16 +111,16 @@ std::uint32_t test_device_fit() {
       .sync();
 
   // both launches must have covered every element
-  if (mismatch(out, fixed_out)) return 1;
+  check_same(out, fixed_out);
 
   auto const kernel_max = getDeviceKernelMaxThreadsPerBlock(heavy, out, in, NUM, 4u);
   KOUT(NON) << "heavy lambda max block " << kernel_max << " (fixed " << fixed_bx << "), device max "
             << getMaxThreadsPerBlock() << ", launched with " << launcher.b.x;
-  if (launcher.b.x > kernel_max) return 1;
-  return 0;
+  MKN_KUL_TEST_CHECK(launcher.b.x <= kernel_max);
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test_heavy() + test_device_fit();
+  test_heavy();
+  test_device_fit();
 }

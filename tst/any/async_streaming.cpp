@@ -5,6 +5,7 @@
 #include "mkn/kul/time.hpp"
 #include "mkn/gpu/stream.hpp"
 #include "mkn/kul/log.hpp"
+#include "mkn/kul/test.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -14,6 +15,9 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <ranges>
+
+MKN_KUL_TEST_DECLARE();
 
 using namespace mkn::gpu;
 using namespace std::chrono_literals;
@@ -24,7 +28,7 @@ std::size_t constexpr static C = 5;               // ~ 5MB of doubles
 template <typename T>
 using ManagedVector = std::vector<T, mkn::gpu::ManagedAllocator<T>>;
 
-std::uint32_t test() {
+void test() {
   MKN_KUL_DBG_FUNC_ENTER;
   using T = double;
 
@@ -45,19 +49,18 @@ std::uint32_t test() {
       .dev([=] __device__(auto i) { views[i][mkn::gpu::idx()] += 3; })();
   auto const end = mkn::kul::Now::MILLIS();
 
-  if (end - start > 1.5e3) return 1;  // serial, C host steps of 200ms, ~1s, nothing else adds up
+  // serial, C host steps of 200ms, ~1s, nothing else adds up
+  MKN_KUL_TEST_CHECK(end - start <= 1.5e3);
 
   std::size_t val = 5;  // item i starts at i, + 1 (dev) + 1 (host) + 3 (dev)
   for (auto const& vec : vecs) {
-    for (auto const& e : vec)
-      if (e != val) return 1;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(vec, [&](auto const& e) { return e == val; }),
+                       "e == val");
     ++val;
   };
-
-  return 0;
 }
 
-std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
+void test_threaded(std::size_t const& nthreads = 2) {
   MKN_KUL_DBG_FUNC_ENTER;
   using T = double;
 
@@ -79,17 +82,15 @@ std::uint32_t test_threaded(std::size_t const& nthreads = 2) {
 
   std::size_t val = 5;  // item i starts at i, + 1 (dev) + 1 (host) + 3 (dev)
   for (auto const& vec : vecs) {
-    for (auto const& e : vec)
-      if (e != val) return 1;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(vec, [&](auto const& e) { return e == val; }),
+                       "e == val");
     ++val;
   };
 
   tsl.print_times();
-
-  return 0;
 }
 
-std::uint32_t test_threaded_group_barrier(std::size_t const& nthreads = 2) {
+void test_threaded_group_barrier(std::size_t const& nthreads = 2) {
   using T = double;
   MKN_KUL_DBG_FUNC_ENTER;
 
@@ -111,19 +112,18 @@ std::uint32_t test_threaded_group_barrier(std::size_t const& nthreads = 2) {
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; })();
   auto const end = mkn::kul::Now::MILLIS();
 
-  if (end - start > 1e3) return 1;  // C + 1 host steps of 200ms over 3 threads, serial is 1.2s
+  // C + 1 host steps of 200ms over 3 threads, serial is 1.2s
+  MKN_KUL_TEST_CHECK(end - start <= 1e3);
 
   std::size_t val = 5;  // item i starts at i, + 1 (dev) + 1 (host) + 3 (dev)
   for (auto const& vec : vecs) {
-    for (auto const& e : vec)
-      if (e != val) return 1;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(vec, [&](auto const& e) { return e == val; }),
+                       "e == val");
     ++val;
   };
-
-  return 0;
 }
 
-std::uint32_t test_threaded_host_group_mutex(std::size_t const& nthreads = 2) {
+void test_threaded_host_group_mutex(std::size_t const& nthreads = 2) {
   using T = double;
   MKN_KUL_DBG_FUNC_ENTER;
 
@@ -147,19 +147,17 @@ std::uint32_t test_threaded_host_group_mutex(std::size_t const& nthreads = 2) {
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] += 3; })();
 
   // once per item, summed per group of 3: 0 + 1 + 2 and 3 + 4 + 5
-  if (vals != std::vector<size_t>{3, 12}) return 1;
+  MKN_KUL_TEST_CHECK((vals == std::vector<size_t>{3, 12}));
 
   std::size_t val = 5;  // item i starts at i, + 1 (dev) + 1 (host) + 3 (dev)
   for (auto const& vec : vecs) {
-    for (auto const& e : vec)
-      if (e != val) return 1;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(vec, [&](auto const& e) { return e == val; }),
+                       "e == val");
     ++val;
   };
-
-  return 0;
 }
 
-std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
+void test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
   using T = double;
   MKN_KUL_DBG_FUNC_ENTER;
 
@@ -187,19 +185,17 @@ std::uint32_t test_threaded_host_group_idx(std::size_t const& nthreads = 2) {
   std::size_t val = 5;  // item i starts at i, + 1 (dev) + 1 (host) + 3 (dev)
   for (std::size_t i = 0; i < vecs.size(); ++i) {
     if (i % group_size == 0) {
-      for (auto const& e : vecs[i])
-        if (e != val + 1) return 1;
+      MKN_KUL_TEST_CHECK(std::ranges::all_of(vecs[i], [&](auto const& e) { return e == val + 1; }),
+                         "e == val + 1");
     } else {
-      for (auto const& e : vecs[i])
-        if (e != val) return 1;
+      MKN_KUL_TEST_CHECK(std::ranges::all_of(vecs[i], [&](auto const& e) { return e == val; }),
+                         "e == val");
     }
     ++val;
   };
-
-  return 0;
 }
 
-std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2) {
+void test_threaded_detached_stream_fns(std::size_t const& nthreads = 2) {
   using T = double;
   MKN_KUL_DBG_FUNC_ENTER;
 
@@ -228,19 +224,18 @@ std::uint32_t test_threaded_detached_stream_fns(std::size_t const& nthreads = 2)
 
   std::size_t val = 5;  // item i starts at i, + 1 (launched before) + 1 (host) + 3 (dev)
   for (std::size_t i = 0; i < vecs.size(); ++i) {
-    for (std::size_t j = 0; j < vecs[i].size(); ++j)
-      if (val != vecs[i][j]) return 1;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(std::views::iota(std::size_t{0}, vecs[i].size()),
+                                           [&](auto const j) { return val == vecs[i][j]; }),
+                       "val == vecs[i][j]");
     ++val;
   };
-
-  return 0;
 }
 
 // a host step may launch its own kernel on the item's stream, the device steps after it, queued
 //  together as a chain, are ordered behind that kernel; the operations do not commute so any
 //  reordering changes the result. The host step prefetches the data it uses, the library does
 //  not know what a host step touches
-std::uint32_t test_threaded_host_launch(std::size_t const& nthreads = 2) {
+void test_threaded_host_launch(std::size_t const& nthreads = 2) {
   using T = double;
   MKN_KUL_DBG_FUNC_ENTER;
 
@@ -268,19 +263,21 @@ std::uint32_t test_threaded_host_launch(std::size_t const& nthreads = 2) {
       .dev([=] __device__(auto const& i) { views[i][mkn::gpu::idx()] *= 10; })();
 
   for (std::size_t i = 0; i < vecs.size(); ++i)
-    for (auto const& e : vecs[i])
-      if (e != ((i + 1 + 1) * 2 + 3) * 10) return 1;
-
-  return 0;
+    MKN_KUL_TEST_CHECK(std::ranges::all_of(
+                           vecs[i], [&](auto const& e) { return e == ((i + 1 + 1) * 2 + 3) * 10; }),
+                       "e == ((i + 1 + 1) * 2 + 3) * 10");
 }
 
 int main() {
   KOUT(NON) << __FILE__;
-  return test()                                                                  //
-         + test_threaded(0) + test_threaded()                                    //
-         + test_threaded(6)                                                      //
-         + test_threaded_group_barrier()                                         //
-         + test_threaded_host_group_mutex()                                      //
-         + test_threaded_host_group_idx() + test_threaded_detached_stream_fns()  //
-         + test_threaded_host_launch(0) + test_threaded_host_launch();
+  test();
+  test_threaded(0);
+  test_threaded();
+  test_threaded(6);
+  test_threaded_group_barrier();
+  test_threaded_host_group_mutex();
+  test_threaded_host_group_idx();
+  test_threaded_detached_stream_fns();
+  test_threaded_host_launch(0);
+  test_threaded_host_launch();
 }
