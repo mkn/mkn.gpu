@@ -130,6 +130,7 @@ struct ALauncher : public Launcher {
     requires(guess)
       : Launcher{dim3{}, dim3{}}, count{size} {
     bx_cap = detail::max_threads_per_block(dev);
+    warp = warp_size(dev);
     set_bx(bx_cap);  // the size is checked at launch, against the final block size
   }
 
@@ -140,7 +141,7 @@ struct ALauncher : public Launcher {
 
   ALauncher()
     requires(!guess)
-      : Launcher{dim3{1}, dim3{warp_size}} {}
+      : Launcher{dim3{1}, dim3{warp_size()}} {}
 
   ALauncher(dim3 const _g, dim3 const _b)
     requires(!guess)
@@ -170,6 +171,7 @@ struct ALauncher : public Launcher {
 
   std::size_t count = 0;   // Guess only
   std::size_t bx_cap = 0;  // Guess only, block x dimension before the kernel limit
+  std::size_t warp = 0;    // Guess only, the device's warp size
 
  protected:
   void set_bx(std::size_t const bx) {
@@ -185,7 +187,7 @@ struct ALauncher : public Launcher {
   // guessed launches are limited by the kernel's own maximum block size, which can be below the
   //  device maximum for kernels with high register or shared memory use
   void fit(std::size_t const kernel_max) {
-    if constexpr (guess) set_bx(mkn::gpu::clamp_bx_threads(bx_cap, kernel_max, warp_size));
+    if constexpr (guess) set_bx(mkn::gpu::clamp_bx_threads(bx_cap, kernel_max, warp));
   }
 };
 

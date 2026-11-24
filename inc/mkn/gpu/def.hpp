@@ -3,6 +3,9 @@
 
 #include "mkn/kul/lang/cpp/compiler/def/inline.hpp"  // IWYU pragma: export
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include <type_traits>
 
 #if MKN_GPU_ROCM and MKN_GPU_CUDA
@@ -72,6 +75,22 @@ struct CompileFlags {
   bool constexpr static withROCM = MKN_GPU_ROCM;
   bool constexpr static withCPU = MKN_GPU_CPU;
   bool constexpr static perNamespace = MKN_GPU_FN_PER_NS;
+};
+
+// a device's properties, the same for every backend (getDeviceProperties), the fields mkn.gpu
+//  uses of CUDA's cudaDeviceProp / HIP's hipDeviceProp_t, which differ between backends and
+//  versions. warpSize is the width this build's kernels run at on the device, from a kernel: it
+//  can differ from the hardware's own (AMD RDNA is wave32 unless compiled -mwavefrontsize64)
+struct DeviceProperties {
+  std::string name;
+  std::string runtime;  // backend and its version
+  std::uint32_t major = 0, minor = 0;
+  std::size_t multiProcessorCount = 0;
+  std::size_t maxThreadsPerMultiProcessor = 0;
+  std::size_t maxThreadsPerBlock = 0;
+  std::size_t totalGlobalMem = 0;
+  std::size_t sharedMemPerBlock = 0;
+  std::uint32_t warpSize = 0;
 };
 
 #if MKN_GPU_CPU

@@ -38,7 +38,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkn/gpu/cuda/cls.hpp"  // IWYU pragma: export
 
 #include <cuda_runtime.h>  // IWYU pragma: export
-#include <cuda.h>          // CUDA_VERSION
 
 //
 
@@ -65,20 +64,7 @@ void fill(Container& c, T val) {
   fill(c, c.size(), val);
 }
 
-//
-void inline prinfo(size_t dev = 0) {
-  cudaDeviceProp devProp;
-  MKN_GPU_ASSERT(cudaGetDeviceProperties(&devProp, dev));
-  KOUT(NON) << " System version  " << devProp.major << "." << devProp.minor;
-  KOUT(NON) << " agent name      " << devProp.name;
-  KOUT(NON) << " cores           " << devProp.multiProcessorCount;
-  KOUT(NON) << " threadsPCore    " << devProp.maxThreadsPerMultiProcessor;
-  KOUT(NON) << " TotalMem        " << (devProp.totalGlobalMem / 1000000) << " MB";
-  KOUT(NON) << " BlockMem        " << (devProp.sharedMemPerBlock / 1000) << " KB";
-  KOUT(NON) << " device warpSize " << devProp.warpSize;
-  KOUT(NON) << " threadsPBlock   " << devProp.maxThreadsPerBlock;
-  KOUT(NON) << " version:        " << CUDA_VERSION;
-}
+#include "mkn/gpu/any/inc/prinfo.ipp"  // IWYU pragma: export
 
 void inline print_gpu_mem_used() {
   double free_m = 0, total_m = 0, used_m = 0;
