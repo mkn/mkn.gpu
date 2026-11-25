@@ -218,6 +218,13 @@ void take_async(T const* p, T* t, auto& /*stream*/, Size size = 1) {
   take(p, t, size);
 }
 
+// size values src -> dst: everything is host memory, copied now
+template <typename T, typename Size>
+void copy_async(T* dst, T const* src, auto& /*stream*/, Size size) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(std::memcpy(dst, src, size * sizeof(T)));
+}
+
 void inline sync() {}
 void inline sync(std::size_t const /*stream*/) {}
 

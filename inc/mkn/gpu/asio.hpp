@@ -53,6 +53,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace mkn::gpu::asio {
 
+// size values src -> dst queued on stream: stream.sync() before reading dst (once for many copies).
+//  Both buffers stay valid, and src unchanged, until stream.sync() returns. Any pointers the
+//  runtime knows: host, device, managed. It returns before the copy is done between device or
+//  managed memory, and with pinned host memory; with pageable host memory the runtime may copy
+//  before returning (staged, HIP always). The CPU backend copies now. Trivially copyable values
+//  only: bytes are copied
+template <typename T>
+void copy(T* dst, T const* src, std::size_t const size, Stream& stream) {
+  static_assert(std::is_trivially_copyable_v<T>, "asio::copy: trivially copyable values only");
+  if (size == 0) return;
+  copy_async(dst, src, stream(), size);
+}
+
+// a range into another of at least its size
+void copy(auto& dst, auto const& src, Stream& stream) {
+  assert(dst.size() >= src.size());
+  copy(dst.data(), src.data(), src.size(), stream);
+}
+
 struct BatchTuple {
   template <typename... Args>
   constexpr static auto type(Args&&... args) {
