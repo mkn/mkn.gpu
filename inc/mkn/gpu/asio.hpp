@@ -53,6 +53,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace mkn::gpu::asio {
 
+// size values src -> dst queued on stream, returning before the copy is done: stream.sync() before
+//  reading dst (once for many copies). Any pointers the runtime knows: host, device, managed (on
+//  the CPU backend, copied now)
+template <typename T>
+void copy(T* dst, T const* src, std::size_t const size, Stream& stream) {
+  if (size == 0) return;
+  copy_async(dst, src, stream(), size);
+}
+
+// a range into another of at least its size
+void copy(auto& dst, auto const& src, Stream& stream) {
+  assert(dst.size() >= src.size());
+  copy(dst.data(), src.data(), src.size(), stream);
+}
+
 struct BatchTuple {
   template <typename... Args>
   constexpr static auto type(Args&&... args) {

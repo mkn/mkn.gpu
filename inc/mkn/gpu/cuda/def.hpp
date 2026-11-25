@@ -248,6 +248,14 @@ void take_async(T const* p, T* t, cudaStream_t& stream, Size size = 1) {
   MKN_GPU_ASSERT(cudaMemcpyAsync(t, p, size * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
 
+// size values src -> dst queued on stream, any pointers the runtime knows (host, device, managed:
+//  cudaMemcpyDefault picks the direction); dst ready after the stream's sync
+template <typename T, typename Size>
+void copy_async(T* dst, T const* src, cudaStream_t& stream, Size size) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(cudaMemcpyAsync(dst, src, size * sizeof(T), cudaMemcpyDefault, stream));
+}
+
 // whether the host can access managed memory while kernels run, and managed memory can be
 //  prefetched to the device. Without it the host must not touch managed memory while any kernel
 //  runs, on any stream
