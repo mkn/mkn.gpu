@@ -1,5 +1,6 @@
 // mkn::gpu::asio::copy: copies queued on one stream behind a kernel on it, one stream sync for
-//  all of them (no device sync), between managed and host memory
+//  all of them (no device sync), between managed and host memory; kernel -> a -> b -> back reads
+//  each step's output, so a copy run out of order fails the check
 
 #include "mkn/gpu.hpp"
 #include "mkn/gpu/asio.hpp"
@@ -36,8 +37,9 @@ void test_copies_then_one_sync() {
 
   mkn::gpu::asio::copy(b, a, stream);                        // managed -> managed
   mkn::gpu::asio::copy(c.data(), host.data(), NUM, stream);  // host -> managed
-  mkn::gpu::asio::copy(back.data(), a.data(), NUM, stream);  // managed -> host
-  mkn::gpu::asio::copy(b.data(), a.data(), 0, stream);       // nothing
+  mkn::gpu::asio::copy(back.data(), b.data(), NUM,
+                       stream);  // managed -> host, b as the first copy left it: in order
+  mkn::gpu::asio::copy(b.data(), a.data(), 0, stream);  // nothing
   stream.sync();
 
   bool ok = true;
