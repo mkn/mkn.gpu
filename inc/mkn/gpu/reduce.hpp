@@ -31,13 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef MKN_GPU_REDUCE_HPP
 #define MKN_GPU_REDUCE_HPP
 
-#if defined(MKN_GPU_ROCM)
-#elif defined(MKN_GPU_CUDA)
-#elif defined(MKN_GPU_CPU)
-#elif !defined(MKN_GPU_FN_PER_NS) || MKN_GPU_FN_PER_NS == 0
-#error "UNKNOWN GPU / define MKN_GPU_ROCM or MKN_GPU_CUDA"
-#endif
-
 #include "mkn/gpu.hpp"
 
 #include <algorithm>
@@ -58,8 +51,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //  block (at most `max_blocks`); one block folds the partials. The grouping depends on n only,
 //  not on the device or timing: floating point sums are the same run to run (unlike atomics),
 //  though not the sequential sum's bits. CPU: a loop over the values, in order.
-// An op: a device and host callable op(a, b), associative, and identity<T>(): op(identity, x)
-//  == x (each thread starts from it, init is applied once).
+// An op: a device and host callable op(a, b), associative and commutative (values are grouped by
+//  thread and block, not taken in order), and identity<T>(): op(identity, x) == op(x, identity)
+//  == x (each thread starts from it, threads without values feed it to the tree, init is applied
+//  once).
+// MKN_GPU_FN_PER_NS: reduce is the backend's (mkn::gpu::cuda::reduce, ...), reduce_op is shared.
 
 namespace mkn::gpu {
 namespace reduce_op {
@@ -104,7 +100,9 @@ struct Max {
 };
 
 }  // namespace reduce_op
+}  // namespace mkn::gpu
 
+namespace MKN_GPU_NS {
 namespace detail {
 
 std::uint32_t constexpr static reduce_block_size = 256;  // a power of 2 (the tree halves it)
@@ -160,6 +158,6 @@ T reduce(DeviceMem<T> const& mem, T const init, Op const op) {
   return reduce(mem.data(), mem.size(), init, op);
 }
 
-}  // namespace mkn::gpu
+}  // namespace MKN_GPU_NS
 
 #endif /* MKN_GPU_REDUCE_HPP */
