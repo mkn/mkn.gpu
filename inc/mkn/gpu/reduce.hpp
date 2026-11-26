@@ -37,6 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <new>
 #include <type_traits>
 
 // device reductions: one value from a buffer, back on the host, no thrust
@@ -113,12 +114,15 @@ std::uint32_t constexpr static reduce_max_blocks = 1024;
 template <typename T, typename Op>
 __global__ void reduce_blocks(T const* const in, std::size_t const n, Op const op, T* const out) {
   std::uint32_t constexpr B = reduce_block_size;
-  __shared__ T tree[B];
+  // raw bytes: a T with a non trivial default constructor (e.g. member initializers) cannot be a
+  //  __shared__ array; each thread's slot is constructed from its value
+  __shared__ alignas(T) unsigned char bytes[B * sizeof(T)];
+  T* const tree = reinterpret_cast<T*>(bytes);
   T acc = Op::template identity<T>();
   std::size_t const stride = static_cast<std::size_t>(gridDim.x) * B;
   for (std::size_t i = static_cast<std::size_t>(blockIdx.x) * B + threadIdx.x; i < n; i += stride)
     acc = op(acc, in[i]);
-  tree[threadIdx.x] = acc;
+  ::new (tree + threadIdx.x) T(acc);
   __syncthreads();
   for (std::uint32_t w = B / 2; w > 0; w >>= 1) {
     if (threadIdx.x < w) tree[threadIdx.x] = op(tree[threadIdx.x], tree[threadIdx.x + w]);
@@ -147,7 +151,7 @@ T reduce(T const* const ptr, std::size_t const n, T const init, Op const op) {
   launch(detail::reduce_blocks<T, Op>, first.g, first.b, 0, first.s, ptr, n, op, partials.data());
   launch(detail::reduce_blocks<T, Op>, second.g, second.b, 0, second.s, partials.data(),
          std::size_t{blocks}, op, total.data());
-  T result;
+  T result = Op::template identity<T>();  // T need not be default constructible
   total.take(&result, 1);
   return op(init, result);
 #endif

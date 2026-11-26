@@ -87,10 +87,37 @@ void test_init() {
   MKN_KUL_TEST_CHECK(reduce(d, 2., reduce_op::Max{}) == 2.);
 }
 
+// a trivially copyable value with a member initializer and no default constructor: the shared
+//  memory and the host result must not default construct it
+struct Pair {
+  Pair() = delete;
+  __host__ __device__ constexpr Pair(int const a_, int const b_) : a{a_}, b{b_} {}
+  int a = 0, b = 0;
+};
+struct PairSum {
+  template <typename T>
+  __host__ __device__ static constexpr T identity() {
+    return T{0, 0};
+  }
+  template <typename T>
+  __host__ __device__ T operator()(T const x, T const y) const {
+    return T{x.a + y.a, x.b + y.b};
+  }
+};
+
+void test_custom() {
+  std::size_t constexpr n = 1000;
+  std::vector<Pair> h(n, Pair{1, 2});
+  DeviceMem<Pair> d(h);
+  auto const r = reduce(d, Pair{3, 4}, PairSum{});
+  MKN_KUL_TEST_CHECK(r.a == 1003 and r.b == 2004);
+}
+
 int main() {
   KOUT(NON) << __FILE__;
   test_integers();
   test_doubles_exact();
   test_floats();
   test_init();
+  test_custom();
 }
