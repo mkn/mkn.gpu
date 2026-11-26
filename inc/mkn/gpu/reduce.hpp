@@ -110,14 +110,19 @@ std::uint32_t constexpr static reduce_block_size = 256;  // a power of 2 (the tr
 std::uint32_t constexpr static reduce_max_blocks = 1024;
 
 #if !MKN_GPU_CPU
+// n T's worth of bytes, aligned for T, constructing nothing: a __shared__ variable needs a trivial
+//  default constructor, which a T with member initializers does not have
+template <typename T, std::size_t n>
+struct alignas(T) RawSlots {
+  unsigned char bytes[n * sizeof(T)];
+};
+
 // out[blockIdx.x] = op over in[i] for i = blockIdx.x * B + threadIdx.x + k * gridDim.x * B < n
 template <typename T, typename Op>
 __global__ void reduce_blocks(T const* const in, std::size_t const n, Op const op, T* const out) {
   std::uint32_t constexpr B = reduce_block_size;
-  // raw bytes: a T with a non trivial default constructor (e.g. member initializers) cannot be a
-  //  __shared__ array; each thread's slot is constructed from its value
-  __shared__ alignas(T) unsigned char bytes[B * sizeof(T)];
-  T* const tree = reinterpret_cast<T*>(bytes);
+  __shared__ RawSlots<T, B> slots;  // each thread's slot constructed from its value
+  T* const tree = reinterpret_cast<T*>(slots.bytes);
   T acc = Op::template identity<T>();
   std::size_t const stride = static_cast<std::size_t>(gridDim.x) * B;
   for (std::size_t i = static_cast<std::size_t>(blockIdx.x) * B + threadIdx.x; i < n; i += stride)
