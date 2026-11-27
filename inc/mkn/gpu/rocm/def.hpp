@@ -230,6 +230,14 @@ void copy_on_device(T* dst, T const* src, Size size = 1) {
   MKN_GPU_ASSERT(hipMemcpy(dst, src, size * sizeof(T), hipMemcpyDeviceToDevice));
 }
 
+// as copy_on_device, queued on the default stream (no stream at hand, e.g. a lone buffer's
+//  regrow): dst ready after a sync, or for anything later on the default stream
+template <typename T, typename Size>
+void copy_on_device_async(T* dst, T const* src, Size size = 1) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(hipMemcpyAsync(dst, src, size * sizeof(T), hipMemcpyDeviceToDevice, 0));
+}
+
 template <typename Size>
 void send(void* p, void* t, Size size = 1) {
   KLOG(TRC);

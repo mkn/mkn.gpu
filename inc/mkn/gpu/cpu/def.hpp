@@ -190,6 +190,13 @@ void copy_on_device(T* dst, T const* src, Size size = 1) {
   MKN_GPU_ASSERT(std::memcpy(dst, src, size * sizeof(T)));
 }
 
+// everything is host memory: copied now
+template <typename T, typename Size>
+void copy_on_device_async(T* dst, T const* src, Size size = 1) {
+  KLOG(TRC);
+  MKN_GPU_ASSERT(std::memcpy(dst, src, size * sizeof(T)));
+}
+
 template <typename Size>
 void send(void* p, void* t, Size size = 1) {
   KLOG(TRC);
