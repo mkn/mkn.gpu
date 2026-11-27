@@ -125,9 +125,12 @@ void copy(T0* dst, T1* src, Size const size) {
   auto const on_device = [&]() { return is_dev(dst_p) && is_dev(src_p); };
 
   // managed both sides: on the device, not a host loop that migrates both arrays to the host
-  //  (and the device's next use of them back)
-  if (src_p.is_managed_ptr() and dst_p.is_managed_ptr())
+  //  (and the device's next use of them back). A device to device cudaMemcpy / hipMemcpy does not
+  //  wait for the host: synced, so dst is ready for the host as std::copy left it
+  if (src_p.is_managed_ptr() and dst_p.is_managed_ptr()) {
     copy_on_device(dst, src, size);
+    sync();
+  }
   else if (on_host())
     std::copy(src, src + size, dst);
   else if (on_device())
