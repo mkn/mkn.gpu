@@ -58,10 +58,11 @@ void test_device_copy_default_stream() {
     pa[i] = 3.0 * i;
   });
   mkn::gpu::copy_on_device_async(b.data(), a.data(), NUM);
+  mkn::gpu::copy_on_device_async(b.data(), a.data() + 1);  // one value, the default count
   mkn::gpu::sync();
 
-  bool ok = true;
-  for (std::uint32_t i = 0; i < NUM; ++i) ok = ok and b[i] == 3.0 * i;
+  bool ok = b[0] == 3.0;
+  for (std::uint32_t i = 1; i < NUM; ++i) ok = ok and b[i] == 3.0 * i;
   MKN_KUL_TEST_CHECK(ok);
 }
 
