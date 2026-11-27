@@ -36,6 +36,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <mutex>
 #include <map>
+#include <stdexcept>
+#include <string>
 #include <cstdint>
 #include <cstdio>
 // -x hip implicitly includes the angle bracket form

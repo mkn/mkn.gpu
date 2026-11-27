@@ -121,6 +121,7 @@ std::size_t inline getMaxSharedMemoryPerBlockOptin(std::size_t const dev = 0) {
 std::size_t inline getKernelMaxDynamicSharedMemory(void const* const /*f*/) {
   return getMaxSharedMemoryPerBlock();
 }
+std::size_t inline getKernelStaticSharedMemory(void const* const /*f*/) { return 0; }
 void inline setKernelMaxDynamicSharedMemory(void const* const /*f*/, std::size_t const /*bytes*/) {}
 
 auto inline getLimitMallocHeapSize() {

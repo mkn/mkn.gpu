@@ -61,16 +61,27 @@ concept span_like = mkn::kul::is_span_like_v<std::decay_t<T>>;
 
 // launches of kernel f asking for more dynamic shared memory than it allows on the current device
 //  opt it in; the kernel's own limit accounts for its static shared memory and the attribute is
-//  per device, so both are kept per kernel and device. Beyond the opt-in maximum the launch
-//  itself reports the error
+//  per device, so both are kept per kernel and device. Beyond the opt-in maximum (less the
+//  kernel's static shared memory) it throws, before the launch: the attribute call would only
+//  report an invalid value
 void inline fit_shared(void const* const f, std::size_t const bytes) {
   if (bytes == 0) return;
   static std::mutex mutex;
   static std::map<std::pair<void const*, std::size_t>, std::size_t> allowed;
   std::lock_guard<std::mutex> lock{mutex};
-  auto const [it, fresh] = allowed.try_emplace({f, getDevice()}, 0);
+  auto const dev           = getDevice();
+  auto const [it, fresh] = allowed.try_emplace({f, dev}, 0);
   if (fresh) it->second = getKernelMaxDynamicSharedMemory(f);
   if (bytes <= it->second) return;
+  auto const optin      = getMaxSharedMemoryPerBlockOptin(dev);
+  auto const static_use = getKernelStaticSharedMemory(f);
+  if (static_use > optin or bytes > optin - static_use)
+    throw std::runtime_error("mkn::gpu: launch asks " + std::to_string(bytes) +
+                             " bytes of dynamic shared memory per block, device " +
+                             std::to_string(dev) + " allows " +
+                             std::to_string(optin > static_use ? optin - static_use : 0) +
+                             " (opt-in maximum " + std::to_string(optin) + ", kernel static " +
+                             std::to_string(static_use) + ")");
   setKernelMaxDynamicSharedMemory(f, bytes);
   it->second = bytes;
 }

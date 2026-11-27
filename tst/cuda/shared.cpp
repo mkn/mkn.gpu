@@ -4,6 +4,7 @@
 
 #define MKN_GPU_FN_PER_NS 1
 #include <cstddef>
+#include <stdexcept>
 #include <cstdint>
 #include <vector>
 #include <algorithm>
@@ -62,10 +63,32 @@ void run(K kernel, std::size_t const dyn_bytes, float const expected) {
                      "e == expected");
 }
 
+// the opt-in maximum less the kernel's static shared memory launches; a byte more throws before
+//  the launch, not as the attribute call's invalid value
+void test_limit() {
+  auto const f = reinterpret_cast<void const*>(with_static);
+  std::size_t const limit = getMaxSharedMemoryPerBlockOptin(getDevice()) - STATIC * sizeof(float);
+  run(with_static, limit, STATIC / THREADS * 1 + limit / 4 / THREADS * 2);
+
+  DeviceMem<float> out(THREADS * BLOCKS);
+  GLauncher launcher{dim3{BLOCKS}, dim3{THREADS}};
+  launcher.ds = limit + 1;
+  bool threw = false;
+  try {
+    launcher(with_static, out, std::uint32_t{0}).sync();
+  } catch (std::runtime_error const& e) {
+    threw = true;
+    KOUT(NON) << e.what();
+  }
+  MKN_KUL_TEST_CHECK(threw, "over the opt-in maximum");
+  MKN_KUL_TEST_CHECK(getKernelMaxDynamicSharedMemory(f) == limit);
+}
+
 int main() {
   KOUT(NON) << __FILE__;
   std::size_t constexpr KB = 1024;
   // 16KB static + 40KB dynamic, over the 48KB default although 40KB alone is not
   run(with_static, 40 * KB, STATIC / THREADS * 1 + 40 * KB / 4 / THREADS * 2);
   run(dynamic_only, 64 * KB, 64 * KB / 4 / THREADS * 2);
+  test_limit();
 }
