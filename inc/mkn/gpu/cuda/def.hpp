@@ -125,6 +125,13 @@ std::size_t inline getKernelMaxDynamicSharedMemory(void const* const f) {
   return attr.maxDynamicSharedSizeBytes;
 }
 
+// static shared memory per block of kernel f (its __shared__ arrays), taken from the opt-in maximum
+std::size_t inline getKernelStaticSharedMemory(void const* const f) {
+  cudaFuncAttributes attr{};
+  MKN_GPU_ASSERT(cudaFuncGetAttributes(&attr, f));
+  return attr.sharedSizeBytes;
+}
+
 // allows launches of kernel f on the current device with up to bytes of dynamic shared memory
 void inline setKernelMaxDynamicSharedMemory(void const* const f, std::size_t const bytes) {
   MKN_GPU_ASSERT(cudaFuncSetAttribute(f, cudaFuncAttributeMaxDynamicSharedMemorySize,

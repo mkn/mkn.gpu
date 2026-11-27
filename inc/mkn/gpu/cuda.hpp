@@ -43,6 +43,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <mutex>
 #include <map>
+#include <stdexcept>
+#include <string>
 #include <cstdio>
 
 namespace MKN_GPU_NS {
