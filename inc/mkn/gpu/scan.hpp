@@ -36,7 +36,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
+#include <vector>
 
 // device exclusive prefix sums, no thrust
 //
@@ -51,7 +53,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //  block scans those sums into each tile's offset, each block scans its tile from its offset
 //  (three launches). Within a block: each thread a run of scan_items consecutive values, a
 //  shared memory (Hillis Steele) scan of the threads' sums. Scratch: one grow only buffer per
-//  thread, no allocation once it fits. CPU: a loop.
+//  thread and device, no allocation once it fits. CPU: a loop.
 // MKN_GPU_FN_PER_NS: exclusive_scan is the backend's (mkn::gpu::cuda::exclusive_scan, ...).
 
 namespace MKN_GPU_NS {
@@ -140,7 +142,8 @@ __global__ void scan_tiles(T const* const in, T* const out, std::size_t const n,
                  sums);
 }
 
-// per thread device scratch of at least n T's, grown only
+// per thread and device scratch of at least n T's, grown only: an allocation belongs to the
+//  device current when it was made
 template <typename T>
 T* scan_scratch(std::size_t const n) {
   struct Scratch {
@@ -150,7 +153,11 @@ T* scan_scratch(std::size_t const n) {
       if (p) destroy(p);
     }
   };
-  thread_local Scratch scratch;
+  thread_local std::vector<std::unique_ptr<Scratch>> per_device;
+  auto const dev = getDevice();
+  if (per_device.size() <= dev) per_device.resize(dev + 1);
+  if (!per_device[dev]) per_device[dev] = std::make_unique<Scratch>();
+  auto& scratch = *per_device[dev];
   if (n > scratch.size) {
     if (scratch.p) destroy(scratch.p);
     scratch.size = n + n / 2;
