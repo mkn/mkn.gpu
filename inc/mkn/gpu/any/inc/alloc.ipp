@@ -124,7 +124,11 @@ void copy(T0* dst, T1* src, Size const size) {
   auto const on_host = [&]() { return is_hst(dst_p) && is_hst(src_p); };
   auto const on_device = [&]() { return is_dev(dst_p) && is_dev(src_p); };
 
-  if (on_host())
+  // managed both sides: on the device, not a host loop that migrates both arrays to the host
+  //  (and the device's next use of them back)
+  if (src_p.is_managed_ptr() and dst_p.is_managed_ptr())
+    copy_on_device(dst, src, size);
+  else if (on_host())
     std::copy(src, src + size, dst);
   else if (on_device())
     copy_on_device(dst, src, size);
