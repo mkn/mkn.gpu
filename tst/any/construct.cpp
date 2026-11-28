@@ -63,8 +63,30 @@ void test_does_not_construct_on_resize() {
   MKN_KUL_TEST_CHECK(mem[10].s == 1);
 }
 
+// values a kernel wrote kept by a reallocating resize / reserve (a device side copy of managed
+//  memory)
+void test_resize_keeps_device_writes() {
+  KLOG(INF);
+  std::size_t constexpr N = 1 << 20;
+  ManagedMemory<double> mem(N);
+  auto* p = mem.data();
+  mkn::gpu::DLauncher{N}([=] __device__() {
+    auto const i = mkn::gpu::idx();
+    if (i < N) p[i] = static_cast<double>(i);
+  });
+  mkn::gpu::sync();
+  resize(mem, N * 2);
+  MKN_KUL_TEST_CHECK(mem.size() == N * 2);
+  reserve(mem, N * 4);
+  MKN_KUL_TEST_CHECK(mem.capacity() >= N * 4);
+  bool ok = true;
+  for (std::size_t i = 0; i < N; ++i) ok = ok and mem[i] == static_cast<double>(i);
+  MKN_KUL_TEST_CHECK(ok, "resize / reserve keep the values a kernel wrote");
+}
+
 int main() {
   KOUT(NON) << __FILE__;
   test_does_construct_on_resize();
   test_does_not_construct_on_resize();
+  test_resize_keeps_device_writes();
 }

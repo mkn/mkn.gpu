@@ -48,7 +48,26 @@ void test_copies_then_one_sync() {
   MKN_KUL_TEST_CHECK(ok);
 }
 
+// no stream: a kernel and the device copy after it on the default stream, one device sync
+void test_device_copy_default_stream() {
+  using T = double;
+  ManagedVector<T> a(NUM, 0), b(NUM, 0);
+  auto* pa = a.data();
+  mkn::gpu::DLauncher{NUM}([=] __device__() {  // no sync after the launch
+    auto const i = mkn::gpu::idx();
+    pa[i] = 3.0 * i;
+  });
+  mkn::gpu::copy_on_device_async(b.data(), a.data(), NUM);
+  mkn::gpu::copy_on_device_async(b.data(), a.data() + 1);  // one value, the default count
+  mkn::gpu::sync();
+
+  bool ok = b[0] == 3.0;
+  for (std::uint32_t i = 1; i < NUM; ++i) ok = ok and b[i] == 3.0 * i;
+  MKN_KUL_TEST_CHECK(ok);
+}
+
 int main() {
   KOUT(NON) << __FILE__;
   test_copies_then_one_sync();
+  test_device_copy_default_stream();
 }
